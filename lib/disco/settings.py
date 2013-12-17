@@ -140,6 +140,11 @@ Possible settings for Disco are as follows:
                 Only results explictly saved to DDFS won't be garbage collected.
                 Default is ``100 * 365 * 24 * 60 * 60`` (100 years).  (Note that this setting does not affect data in DDFS.)
 
+        .. envvar:: DATA_GC_INTERVAL
+
+                How long to wait before garbage collecting purged job data.
+                Default is ``12`` (hours).
+
         .. envvar:: DISCO_WORKER_MAX_MEM
 
                 How much memory can be used by worker in total. Worker calls `resource.setrlimit(RLIMIT_AS, limit) <http://docs.python.org/library/resource.html#resource.setrlimit>`_ to set the limit when it starts. Can be either a percentage of total available memory or an exact number of bytes. Note that ``setrlimit`` behaves differently on Linux and Mac OS X, see *man setrlimit* for more information. Default is ``80%`` i.e. 80% of the total available memory.
@@ -246,6 +251,11 @@ Settings used by DDFS:
 
                 Default is ``''``.
 
+        .. envvar:: DDFS_NODE_STARTUP
+
+                The amount of time to wait for a ddfs_node to startup (in minutes).
+                Default is ``'10'``.
+
 
 The following settings are used by DDFS to determine the number of replicas for data/metadata to keep
 (it is not recommended to use the provided defaults in a multinode cluster):
@@ -297,6 +307,7 @@ class DiscoSettings(Settings):
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_JOB_OWNER':       "job_owner()",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
+        'DATA_GC_INTERVAL':      "12",
 # GC
         'DISCO_GC_AFTER':        "100 * 365 * 24 * 60 * 60",
 # PROXY
@@ -326,7 +337,8 @@ class DiscoSettings(Settings):
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
         'DDFS_PARANOID_DELETE':  "''",
-        'DDFS_GC_INITIAL_WAIT':  "''"
+        'DDFS_GC_INITIAL_WAIT':  "''",
+        'DDFS_NODE_STARTUP':     "10"
         }
 
     globals = globals()

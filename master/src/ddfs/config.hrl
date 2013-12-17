@@ -8,10 +8,6 @@
 % Maximum length of tag/blob prefix
 -define(NAME_MAX, 511).
 
-% How long ddfs node startup can take.  The most time-consuming part
-% is the scanning of the tag objects in the node's DDFS volumes.
--define(NODE_STARTUP, (1 * ?MINUTE)).
-
 % How long to wait on the master for replies from nodes.
 -define(NODE_TIMEOUT, (10 * ?SECOND)).
 
@@ -26,7 +22,7 @@
 
 % The maximum number of active HTTP connections on a system (this
 % applies separately for GET and PUT operations).
--define(HTTP_MAX_ACTIVE, 3).
+-define(HTTP_MAX_ACTIVE, 60).
 
 % The maximum number of waiting HTTP connections to queue up on a busy system.
 -define(HTTP_QUEUE_LENGTH, 100).
@@ -35,7 +31,7 @@
 % HTTP_MAX_CONNS * 2 * 2 + 32 < Maximum number of file descriptors, where
 % 2 = Get and put, 2 = two FDs required for each connection (connection
 % itself + a file it accesses), 32 = a guess how many extra fds is needed.
--define(HTTP_MAX_CONNS, 128).
+-define(HTTP_MAX_CONNS, 10240).
 
 % How long to keep a PUT request in queue if the system is busy.
 -define(PUT_WAIT_TIMEOUT, (1 * ?MINUTE)).
@@ -74,7 +70,7 @@
 
 % Max duration for a GC run.  This should be smaller than
 % min(ORPHANED_{BLOB,TAG}_EXPIRES).
--define(GC_MAX_DURATION, (3 * ?DAY)).
+-define(GC_MAX_DURATION, (20 * ?DAY)).
 
 % How long to wait after startup for cluster to stabilize before
 % starting the first GC run.
@@ -83,7 +79,7 @@
 % The longest potential interval between messages in the GC protocol;
 % used to ensure GC makes forward progress.  This can be set to the
 % estimated time to traverse all the volumes on a DDFS node.
--define(GC_PROGRESS_INTERVAL, (30 * ?MINUTE)).
+-define(GC_PROGRESS_INTERVAL, (20 * ?DAY)).
 
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.
@@ -102,7 +98,7 @@
 % Tag attribute names and values have a limited size, and there
 % can be only a limited number of them.
 -define(MAX_TAG_ATTRIB_NAME_SIZE, 1024).
--define(MAX_TAG_ATTRIB_VALUE_SIZE, 1024).
+-define(MAX_TAG_ATTRIB_VALUE_SIZE, 8192).
 -define(MAX_NUM_TAG_ATTRIBS, 1000).
 
 % How long HTTP requests that perform tag updates should wait to
@@ -120,10 +116,10 @@
 % When orphaned blob can be deleted.  This should be large enough that
 % you can upload all the new blobs of a tag and perform the tag update
 % within this time.
--define(ORPHANED_BLOB_EXPIRES, (5 * ?DAY)).
+-define(ORPHANED_BLOB_EXPIRES, (10 * ?DAY)).
 
 % When orphaned tag can be deleted.
--define(ORPHANED_TAG_EXPIRES, (5 * ?DAY)).
+-define(ORPHANED_TAG_EXPIRES, (10 * ?DAY)).
 
 % How long a tag has to stay on the deleted list before
 % we can permanently forget it, after all known instances

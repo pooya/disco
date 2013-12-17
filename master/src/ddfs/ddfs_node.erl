@@ -25,7 +25,8 @@
 start_link(Config, NodeMon) ->
     process_flag(trap_exit, true),
     case gen_server:start_link(
-                 {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
+                 {local, ?MODULE}, ?MODULE, Config,
+                 [{timeout, list_to_integer(disco:get_setting("DDFS_NODE_STARTUP")) * ?MINUTE}]) of
         {ok, _Server} ->
             error_logger:info_msg("~p starts on ~p", [?MODULE, node()]),
             ok;
