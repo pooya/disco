@@ -52,7 +52,7 @@ job_done(JobName) ->
 
 -spec next_task([host()]) -> nojobs | {ok, {pid(), {node(), task()}}}.
 next_task(AvailableNodes) ->
-    gen_server:call(?MODULE, {next_task, AvailableNodes}).
+    gen_server:call(?MODULE, {next_task, AvailableNodes}, infinity).
 
 -spec new_job(jobname(), pid()) -> ok.
 new_job(JobName, JobCoord) ->
@@ -135,7 +135,7 @@ handle_call({next_task, AvailableNodes}, _From, Nodes) ->
     {reply, next_task(AvailableNodes, Jobs, []), Nodes}.
 
 next_task(AvailableNodes, Jobs, NotJobs) ->
-    case gen_server:call(sched_policy, {next_job, NotJobs}) of
+    case gen_server:call(sched_policy, {next_job, NotJobs}, infinity) of
         {ok, JobPid} ->
             case fair_scheduler_job:next_task(JobPid, Jobs, AvailableNodes) of
                 {ok, Task} -> {ok, {JobPid, Task}};
