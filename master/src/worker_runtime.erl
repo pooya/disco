@@ -168,6 +168,7 @@ do_handle({<<"FATAL">>, Msg}, _S) ->
     {stop, {fatal, Msg}};
 
 do_handle({<<"OUTPUT">>, Output}, S) ->
+    error_logger:warning_msg("Got Output from worker: ~p", [Output]),
     case add_output(list_to_tuple(Output), S) of
         {ok, S1}   -> {ok, {"OK", <<"ok">>}, S1};
         {error, E} -> {stop, {error, E}}

@@ -71,10 +71,12 @@ send_file(Req, Path, Root) ->
 
 -spec send_file(module(), path()) -> _.
 send_file(Req, Path) ->
+    error_logger:warning_msg("Looking for ~p at ~p", [Req, Path]),
     case prim_file:read_file_info(Path) of
         {ok, #file_info{type = regular}} ->
             case file:open(Path, [read, raw, binary]) of
                 {ok, IO} ->
+                    error_logger:warning_msg("Got the file."),
                     Req:ok({"application/octet-stream", [], {file, IO}}),
                     file:close(IO);
                 _ ->
@@ -83,6 +85,7 @@ send_file(Req, Path) ->
         {ok, _} ->
             Req:respond({403, [], ["Forbidden"]});
         {error, enoent} ->
+            error_logger:warning_msg("File not found."),
             Req:not_found();
         _ ->
             Req:respond({500, [], ["Access failed"]})

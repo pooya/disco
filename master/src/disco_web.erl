@@ -196,13 +196,15 @@ postop("clean_job", Json) ->
 
 postop("get_results", Json) ->
     Results = fun(N) -> event_server:get_results(N) end,
-    validate_payload("get_results", {array, [integer, {hom_array, string}]}, Json,
+    R = validate_payload("get_results", {array, [integer, {hom_array, string}]}, Json,
                      fun(J) ->
                              [Timeout, Names] = J,
                              S = [{N, Results(binary_to_list(N))} || N <- Names],
                              {ok, [[N, status_msg(M)]
                                    || {N, M} <- wait_jobs(S, Timeout)]}
-                     end);
+                     end),
+    lager:warning("get_results gives back ~p", [R]),
+    R;
 
 postop("blacklist", Json) ->
     validate_payload("blacklist", string, Json,

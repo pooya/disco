@@ -352,6 +352,7 @@ do_add_job_event(Host, JobName, Msg, Event, #state{msgbuf = MsgBuf} = S) ->
 
 add_event(Host0, JobName, Msg, Event,
           #state{events = Events, msgbuf = MsgBuf} = S) ->
+    lager:info("Got evnet ~p for Job: ~p", [Event, JobName]),
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
     Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),

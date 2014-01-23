@@ -485,6 +485,10 @@ class ReplicaIter(object):
 
 class InputIter(object):
     def __init__(self, input, task=None, open=None, start=0):
+        import __builtin__
+        f = __builtin__.open("/tmp/outputs", 'w')
+        print >>f, str(input), str(task), str(open), str(start)
+        f.close()
         self.input = input
         if isinstance(input, IDedInput):
             self.urls = ReplicaIter(input)

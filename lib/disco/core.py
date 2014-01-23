@@ -324,6 +324,7 @@ class Disco(object):
         except CommError as e:
             status = 'active'
         if status == 'ready':
+            print "Job is ready!", str(status), str(results)
             return results
         if status != 'active':
             raise JobError(Job(name=jobname, master=self), "Status {0}".format(status))
