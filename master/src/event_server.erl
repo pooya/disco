@@ -219,6 +219,7 @@ handle_cast({job_done, JobName}, S) ->
     {noreply, do_job_done(JobName, S)};
 handle_cast({clean_job, JobName}, S) ->
     #state{events = Events} = S1 = do_job_done(JobName, S),
+    lager:warning("Job is cleaned up: ~p", [JobName]),
     delete_jobdir(JobName),
     {noreply, S1#state{events = dict:erase(JobName, Events)}}.
 
@@ -266,6 +267,7 @@ update_job_ent(#job_ent{task_ready = TaskReady} = JE, {task_ready, Stage}) ->
 update_job_ent(#job_ent{task_failed = TaskFailed} = JE, {task_failed, Stage}) ->
     JE#job_ent{task_failed = dict:update_counter(Stage, 1, TaskFailed)};
 update_job_ent(#job_ent{stage_results = Results} = JE, {stage_ready, S, R}) ->
+    lager:info("Got stage_ready"),
     JE#job_ent{stage_results = dict:store(S, R, Results)};
 update_job_ent(JE, {ready, Results}) ->
     JE#job_ent{job_results = Results}.
@@ -352,7 +354,7 @@ do_add_job_event(Host, JobName, Msg, Event, #state{msgbuf = MsgBuf} = S) ->
 
 add_event(Host0, JobName, Msg, Event,
           #state{events = Events, msgbuf = MsgBuf} = S) ->
-    lager:info("Got evnet ~p for Job: ~p", [Event, JobName]),
+    lager:info("Got event ~p for Job: ~p", [Event, JobName]),
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
     Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),
@@ -377,8 +379,9 @@ add_event(Host0, JobName, Msg, Event,
         Event =:= none ->
             S#state{events = Events, msgbuf = MsgBufN};
         true ->
-            {ok, JE} = dict:find(JobName, Events),
+            {ok, #job_ent{job_coord = CordPid} = JE} = dict:find(JobName, Events),
             EventsN = dict:store(JobName, update_job_ent(JE, Event), Events),
+            lager:info("Event stored ~p ~p ~p", [JobName, CordPid, is_process_alive(CordPid)]),
             S#state{events = EventsN, msgbuf = MsgBufN}
     end.
 
