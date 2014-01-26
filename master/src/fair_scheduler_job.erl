@@ -6,8 +6,6 @@
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--define(SCHEDULE_TIMEOUT, 30000).
-
 -include("common_types.hrl").
 -include("gs_util.hrl").
 -include("disco.hrl").
@@ -69,8 +67,7 @@ next_task(Job, Jobs, AvailableNodes) ->
               -> {ok, {host(), task()}} | none.
 schedule(Mode, Job, Jobs, AvailableNodes) ->
     % First try to find a node-local or remote task to execute.
-    try
-        case gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
+    try case gen_server:call(Job, {Mode, AvailableNodes}, infinity) of
             {run, Node, Task} ->
                 {ok, {Node, Task}};
             nonodes ->
