@@ -74,7 +74,7 @@
 
 % How long to wait after startup for cluster to stabilize before
 % starting the first GC run.
--define(GC_DEFAULT_INITIAL_WAIT, (5 * ?MINUTE)).
+-define(GC_DEFAULT_INITIAL_WAIT, (10 * ?SECOND)).
 
 % The longest potential interval between messages in the GC protocol;
 % used to ensure GC makes forward progress.  This can be set to the

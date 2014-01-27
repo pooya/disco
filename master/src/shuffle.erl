@@ -89,6 +89,7 @@ write_index(Path, Lines) ->
     {ok, IO} = prim_file:open([Path, $., Time], [write, raw, compressed]),
     ok = prim_file:write(IO, Lines),
     ok = prim_file:close(IO),
+    error_logger:info_msg("rename in shuffle."),
     prim_file:rename([Path, $., Time], Path).
 
 -spec merged_index([nonempty_string()], path(), partinfo()) -> [binary()].
