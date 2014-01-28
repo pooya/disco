@@ -61,28 +61,30 @@ gc_node(Master, _Now, Root, Phase)
 -spec traverse(erlang:timestamp(), path(), [volume_name()], object_type()) -> 'ok'.
 traverse(Now, Root, VolNames, Type) ->
     Mode = case Type of tag -> "tag"; blob -> "blob" end,
+    Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
     lists:foreach(
       fun(VolName) ->
               DDFSDir = filename:join([Root, VolName, Mode]),
               Handler = fun(Obj, Dir, _Ok) ->
-                                handle_file(Obj, Dir, VolName, Type, Now)
+                                handle_file(Obj, Dir, VolName, Type, Now,
+                                    Paranoid)
                         end,
               ddfs_util:fold_files(DDFSDir, Handler, ok)
       end, VolNames).
 
--spec handle_file(path(), path(), volume_name(), object_type(), erlang:timestamp())
+-spec handle_file(path(), path(), volume_name(), object_type(),
+    erlang:timestamp(), term())
                  -> 'ok'.
-handle_file("!trash" ++ _, _, _, _, _) ->
+handle_file("!trash" ++ _, _, _, _, _, _) ->
     ok;
 % GC1) Remove leftover !partial. files
-handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
+handle_file("!partial" ++ _ = File, Dir, _, _, Now, Paranoid) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
     Diff = timer:now_diff(Now, Time) / 1000,
-    Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
     Path = filename:join(Dir, File),
     delete_if_expired(unknown, Path, Diff, ?PARTIAL_EXPIRES, Paranoid);
-handle_file(Obj, Dir, VolName, Type, _) ->
+handle_file(Obj, Dir, VolName, Type, _, _) ->
     Size = case prim_file:read_file_info(filename:join(Dir, Obj)) of
                {ok, #file_info{size = S}} -> S;
                _E -> 0
