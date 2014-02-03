@@ -226,6 +226,9 @@ class Master(clx.server.Server):
                  '-pa', edep('meck'),
                  '-pa', edep('bear'),
                  '-pa', edep('folsom'),
+                 '-pa', edep('webmachine'),
+                 '-pa', edep('ibrowse'),
+                 '-pa', edep('folsom_webmachine'),
                  '-eval', 'application:start(disco)'])
         return ret
 
