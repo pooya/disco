@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 -export([start_link_remote/3,
-         start_link/3,
+         start_link/1,
          init/1,
          handle_call/3,
          handle_cast/2,
@@ -40,9 +40,8 @@
 start_link_remote(Host, NodeMon, Task) ->
     Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon, Host),
+    spawn_link(Node, disco_worker, start_link, [{self(), node(), Task}]),
     process_flag(trap_exit, true),
-    spawn_link(Node, fun() -> disco_worker:start_link(self(), node(), Task)
-                     end),
     receive
         ok -> ok;
         {'EXIT', _, Reason} ->
@@ -70,8 +69,8 @@ wait_for_exit() ->
             exit(Reason)
     end.
 
--spec start_link(pid(), node(), task()) -> no_return().
-start_link(Parent, Master, Task) ->
+-spec start_link({pid(), node(), task()}) -> no_return().
+start_link({Parent, Master, Task}) ->
     process_flag(trap_exit, true),
     {ok, Server} = gen_server:start_link(?MODULE, {Master, Task}, []),
     gen_server:cast(Server, start),
