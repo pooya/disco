@@ -1,6 +1,6 @@
 -module(web_server).
 
--export([start/1]).
+-export([start/1, dispatch/3]).
 -define(HANDLERS, ["ddfs", "disco"]).
 
 -include("config.hrl").
@@ -40,7 +40,7 @@ loop("/" ++ Path = P, Req) ->
                     Module = list_to_atom(Root ++ "_web"),
                     disco_profile:timed_run(
                         fun() ->
-                                dispatch(Req, Module, P)
+                                eflame:apply(web_server, dispatch, [Req, Module, P])
                         end, Module);
                 false when Path =:= "" ->
                     Req:serve_file("index.html", docroot());
@@ -54,6 +54,7 @@ loop(_, Req) ->
 docroot() ->
     disco:get_setting("DISCO_WWW_ROOT").
 
+-spec dispatch(string(), module(), string()) -> any().
 dispatch(Req, Module, Path) ->
     erlang:put(mochiweb_request_force_close, true),
     try Module:op(Req:get(method), Path, Req)
