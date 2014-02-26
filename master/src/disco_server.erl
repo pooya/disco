@@ -9,6 +9,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-export([do_new_task/2]).
+
 -include_lib("kernel/include/file.hrl").
 
 -include("common_types.hrl").
@@ -107,7 +109,9 @@ clean_job(JobName) ->
 
 -spec new_task(task(), non_neg_integer()) -> ok | failed.
 new_task(Task, Timeout) ->
-    gen_server:call(?MODULE, {new_task, Task}, Timeout).
+    FileName = "NT_" ++ io_lib:format("~p", [erlang:phash2(make_ref())]),
+    eflame:apply(normal_with_children, FileName, gen_server, call, [?MODULE,
+            {new_task, Task}, Timeout]).
 
 -spec connection_status(host(), up | down) -> ok.
 connection_status(Node, Status) ->
@@ -179,7 +183,9 @@ handle_call({new_job, JobName, JobCoord}, _, S) ->
     {reply, do_new_job(JobName, JobCoord, S), S};
 
 handle_call({new_task, Task}, _, S) ->
-    {reply, do_new_task(Task, S), S};
+    FileName = "HC_" ++ io_lib:format("~p", [erlang:phash2(make_ref())]),
+    Ret = eflame:apply(normal_with_children, FileName, ?MODULE, do_new_task, [Task, S]),
+    {reply, Ret, S};
 
 handle_call({get_active, JobName}, _From, S) ->
     {reply, do_get_active(JobName, S), S};
