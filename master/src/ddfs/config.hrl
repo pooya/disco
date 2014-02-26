@@ -116,10 +116,10 @@
 % When orphaned blob can be deleted.  This should be large enough that
 % you can upload all the new blobs of a tag and perform the tag update
 % within this time.
--define(ORPHANED_BLOB_EXPIRES, (10 * ?DAY)).
+-define(ORPHANED_BLOB_EXPIRES, (2 * ?HOUR)).
 
 % When orphaned tag can be deleted.
--define(ORPHANED_TAG_EXPIRES, (10 * ?DAY)).
+-define(ORPHANED_TAG_EXPIRES, (2 * ?HOUR)).
 
 % How long a tag has to stay on the deleted list before
 % we can permanently forget it, after all known instances
