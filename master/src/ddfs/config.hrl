@@ -9,7 +9,7 @@
 -define(NAME_MAX, 511).
 
 % How long to wait on the master for replies from nodes.
--define(NODE_TIMEOUT, (10 * ?SECOND)).
+-define(NODE_TIMEOUT, (45 * ?SECOND)).
 
 % How long to wait for a reply from an operation coordinated by the
 % master that accesses nodes.  This value should be larger than
