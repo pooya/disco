@@ -22,7 +22,7 @@
 
 % The maximum number of active HTTP connections on a system (this
 % applies separately for GET and PUT operations).
--define(HTTP_MAX_ACTIVE, 60).
+-define(HTTP_MAX_ACTIVE, 15).
 
 % The maximum number of waiting HTTP connections to queue up on a busy system.
 -define(HTTP_QUEUE_LENGTH, 100).
@@ -31,7 +31,7 @@
 % HTTP_MAX_CONNS * 2 * 2 + 32 < Maximum number of file descriptors, where
 % 2 = Get and put, 2 = two FDs required for each connection (connection
 % itself + a file it accesses), 32 = a guess how many extra fds is needed.
--define(HTTP_MAX_CONNS, 10240).
+-define(HTTP_MAX_CONNS, 128).
 
 % How long to keep a PUT request in queue if the system is busy.
 -define(PUT_WAIT_TIMEOUT, (1 * ?MINUTE)).
@@ -116,10 +116,10 @@
 % When orphaned blob can be deleted.  This should be large enough that
 % you can upload all the new blobs of a tag and perform the tag update
 % within this time.
--define(ORPHANED_BLOB_EXPIRES, (10 * ?DAY)).
+-define(ORPHANED_BLOB_EXPIRES, (2 * ?HOUR)).
 
 % When orphaned tag can be deleted.
--define(ORPHANED_TAG_EXPIRES, (10 * ?DAY)).
+-define(ORPHANED_TAG_EXPIRES, (2 * ?HOUR)).
 
 % How long a tag has to stay on the deleted list before
 % we can permanently forget it, after all known instances
@@ -133,7 +133,7 @@
 % This value _must_ be larger than the other time-related DDFS
 % parameters listed in this file.  In particular, it must be larger
 % than ORPHANED_TAG_EXPIRES.
--define(DELETED_TAG_EXPIRES, (30 * ?DAY)).
+-define(DELETED_TAG_EXPIRES, (10 * ?DAY)).
 
 % How many times a tag operation should be retried before aborting.
 -define(MAX_TAG_OP_RETRIES, 3).
