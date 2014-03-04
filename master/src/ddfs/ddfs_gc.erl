@@ -42,9 +42,10 @@ start_gc(Root) ->
         end,
     initial_wait(InitialWait),
     process_flag(trap_exit, true),
-    GCMaxDuration = lists:min([?GC_MAX_DURATION,
-                               ?ORPHANED_BLOB_EXPIRES,
-                               ?ORPHANED_TAG_EXPIRES]),
+    GCMaxDuration = ?GC_MAX_DURATION,
+    % GCMaxDuration = lists:min([?GC_MAX_DURATION,
+    %                            ?ORPHANED_BLOB_EXPIRES,
+    %                            ?ORPHANED_TAG_EXPIRES]),
     start_gc(Root, ets:new(deleted_ages, [set, public]), GCMaxDuration).
 
 -spec initial_wait(timeout()) -> ok.
