@@ -67,7 +67,7 @@ get_jobs() ->
 
 -spec get_jobs(Master :: node()) -> {ok, [joblist_entry()]}.
 get_jobs(Master) ->
-    gen_server:call({?MODULE, Master}, get_jobs).
+    gen_server:call({?MODULE, Master}, get_jobs, infinity).
 
 -spec get_jobinfo(jobname()) -> invalid_job | {ok, job_eventinfo()}.
 get_jobinfo(JobName) ->
