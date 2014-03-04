@@ -202,6 +202,7 @@ class Master(clx.server.Server):
                      + ' ["disco", ' + '{0},'.format(settings['DISCO_LOG_FACILITY'])
                      + ' {0}'.format(settings['DISCO_LOG_LEVEL'])
                      + ']}]'),
+                    '-lager', 'error_logger_hwm', '200',
                     '-lager', 'crash_log', '"{0}/crash.log"'.format(log_dir)]
         ret = (settings['DISCO_ERLANG'].split() +
                 lager_config(settings['DISCO_LOG_DIR']) +
