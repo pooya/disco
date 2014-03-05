@@ -12,12 +12,14 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
+-define(NameSpace, "").
+
 -record(state, {nodename :: host(),
                 root :: path(),
                 vols :: [volume()],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
-                tags :: gb_tree(),
+                tagMaps :: dict(),
                 scanner :: pid()}).
 -type state() :: #state{}.
 
@@ -82,7 +84,7 @@ init(Config) ->
     {put_enabled, PutEnabled} = proplists:lookup(put_enabled, Config),
 
     {ok, Vols} = find_vols(DdfsRoot),
-    {ok, Tags} = find_tags(DdfsRoot, Vols),
+    {ok, TagMaps} = find_tags(DdfsRoot, Vols),
 
     if
         PutEnabled ->
@@ -105,7 +107,7 @@ init(Config) ->
     {ok, #state{nodename = NodeName,
                 root = DdfsRoot,
                 vols = Vols,
-                tags = Tags,
+                tagMaps = TagMaps,
                 putq = http_queue:new(?HTTP_MAX_ACTIVE, ?HTTP_QUEUE_LENGTH),
                 getq = http_queue:new(?HTTP_MAX_ACTIVE, ?HTTP_QUEUE_LENGTH),
                 scanner = Scanner}}.
@@ -136,8 +138,8 @@ init(Config) ->
                          gs_reply(put_tag_data_result());
                  (put_tag_commit_msg(), from(), state()) ->
                          gs_reply({ok, url()} | {error, _}).
-handle_call(get_tags, _, #state{tags = Tags} = S) ->
-    {reply, gb_trees:keys(Tags), S};
+handle_call(get_tags, _, #state{tagMaps = TagMaps} = S) ->
+    {reply, gb_trees:keys(dict:fetch(?NameSpace, TagMaps)), S};
 
 handle_call(get_vols, _, #state{vols = Vols, root = Root} = S) ->
     {reply, {Vols, Root}, S};
@@ -176,8 +178,8 @@ handle_cast(rescan_tags, #state{scanner = Scanner} = S) ->
 handle_cast({update_vols, NewVols}, #state{vols = Vols} = S) ->
     {noreply, S#state{vols = lists:ukeymerge(2, NewVols, Vols)}};
 
-handle_cast({update_tags, Tags}, S) ->
-    {noreply, S#state{tags = Tags}}.
+handle_cast({update_tags, TagMaps}, S) ->
+    {noreply, S#state{tagMaps = TagMaps}}.
 
 -spec handle_info({'DOWN', _, _, pid(), _}, state()) -> gs_noreply().
 handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
@@ -245,7 +247,8 @@ do_put_blob(BlobName, {Pid, _Ref} = From,
 
 -type tag_ts() :: not_found | {ok, {erlang:timestamp(), volume_name()}}.
 -spec do_get_tag_timestamp(tagname(), state()) -> tag_ts().
-do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
+do_get_tag_timestamp(TagName, #state{tagMaps = TagMaps}) ->
+    Tags = dict:fetch(?NameSpace, TagMaps),
     case gb_trees:lookup(TagName, Tags) of
         none ->
             notfound;
@@ -297,7 +300,7 @@ do_put_tag_data(Tag, Data, #state{nodename = NodeName,
                        -> {{ok, url()} | {error, _}, state()}.
 do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
                                       root = Root,
-                                      tags = Tags} = S) ->
+                                      tagMaps = TagMaps} = S) ->
     {_, VolName} = lists:keyfind(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,
                                          NodeName,
@@ -311,8 +314,9 @@ do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
     Dst = Local ++ "/" ++ TagL,
     case ddfs_util:safe_rename(Src, Dst) of
         ok ->
-            {{ok, Url},
-             S#state{tags = gb_trees:enter(TagName, {Time, VolName}, Tags)}};
+            Tags = gb_trees:enter(TagName, {Time, VolName},
+                dict:fetch(?NameSpace, TagMaps)),
+            {{ok, Url}, S#state{tagMaps = dict:store(?NameSpace, Tags, TagMaps)}};
         {error, _} = E ->
             {E, S}
     end.
@@ -363,15 +367,18 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(path(), [volume()]) -> {ok, gb_tree()}.
+-spec find_tags(path(), [volume()]) -> {ok, dict()}.
 find_tags(Root, Vols) ->
-    {ok,
+    %TODO read all of the tags in all of the namespaces
+    Tags1 =
      lists:foldl(fun({_Space, VolName}, Tags) ->
                          ddfs_util:fold_files(filename:join([Root, VolName, "tag"]),
                                               fun(Tag, _, Tags1) ->
                                                       parse_tag(Tag, VolName, Tags1)
                                               end, Tags)
-                 end, gb_trees:empty(), Vols)}.
+                 end, gb_trees:empty(), Vols),
+             TagMaps = dict:new(),
+    {ok, dict:store(?NameSpace, Tags1, TagMaps)}.
 
 -spec parse_tag(nonempty_string(), volume_name(), gb_tree()) -> gb_tree().
 parse_tag("!" ++ _, _, Tags) -> Tags;
@@ -415,6 +422,6 @@ refresh_tags(Root, Vols) ->
     after ?FIND_TAGS_INTERVAL ->
             ok
     end,
-    {ok, Tags} = find_tags(Root, Vols),
-    gen_server:cast(ddfs_node, {update_tags, Tags}),
+    {ok, TagMaps} = find_tags(Root, Vols),
+    gen_server:cast(ddfs_node, {update_tags, TagMaps}),
     refresh_tags(Root, Vols).
