@@ -19,6 +19,7 @@
                 inputs       :: worker_inputs:state(),
                 start_time   :: erlang:timestamp(),
                 save_outputs :: boolean(),
+                save_info    :: string(),
 
                 child_pid       = none             :: none | non_neg_integer(),
                 failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
@@ -313,16 +314,17 @@ results(#state{jobname = JobName,
                task = Task,
                master = Master,
                save_outputs = true,
+               save_info = SaveInfo,
                output_filename = FileName,
                remote_outputs = ROutputs}) ->
-    case save_locals_to_ddfs(JobName, FileName, Master, Task) of
+    case save_locals_to_dfs(JobName, FileName, Master, Task, SaveInfo) of
         {ok, Locs} -> {ok, disco:enum([{data, O} || O <- ROutputs ++ Locs])};
         E          -> E
     end.
 
--spec save_locals_to_ddfs(jobname(), path(), node(), task()) ->
+-spec save_locals_to_dfs(jobname(), path(), node(), task(), string()) ->
                                  {ok, [remote_output()]} | {error, term()}.
-save_locals_to_ddfs(JN, FileName, Master, Task) ->
+save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
     IndexFile = filename:join(disco_worker:jobhome(JN), FileName),
     NReplicas = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     {#task_spec{taskid = TaskId}, #task_run{runid = RunId}} = Task,
@@ -341,7 +343,11 @@ save_locals_to_ddfs(JN, FileName, Master, Task) ->
                         {error, bad_index_file}
                 end,
             case Locals of
-                {ok, L} -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, []);
+                {ok, L} ->
+                    case lists:prefix("hdfs", SaveInfo) of
+                        true -> save_hdfs(L, JN, SaveInfo, []);
+                        _    -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, [])
+                    end;
                 {error, _} = E1 -> E1
             end;
         {error, _} = E2 ->
@@ -360,6 +366,15 @@ parse_index(Index) ->
         nomatch ->
             []
     end.
+
+save_hdfs([], _JN, _SaveInfo, Saved) ->
+    {ok, Saved};
+
+save_hdfs([{_L, Loc, _Sz} = _H | Rest], JN, SaveInfo, Saved) ->
+    ["hdsf", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
+    LocalPath = disco:joburl_to_localpath(Loc),
+    hdfs:save_to_hdfs(NameNode, HdfsDir ++ JN, User, LocalPath),
+    save_hdfs(Rest, JN, SaveInfo, Saved).
 
 -spec save_locals([{label(), url(), data_size()}], integer(), node(),
                   jobname(), task_id(), task_run_id(), [remote_output()]) ->

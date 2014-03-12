@@ -130,5 +130,6 @@
                   inputs = []   :: [task_output()],
                   pipeline = [] :: pipeline(),
                   schedule      :: task_schedule(),
-                  save_results = false :: boolean()}).
+                  save_results = false :: boolean(),
+                  save_info     :: string()}).
 -type jobinfo() :: #jobinfo{}.
