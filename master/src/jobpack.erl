@@ -75,7 +75,7 @@ jobdict(<<?MAGIC:16/big,
 core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
     SaveResults = find(<<"save_results">>, JobDict, false),
-    SaveInfo = find(<<"save_info">>, JobDict, "ddfs,"),
+    SaveInfo = find(<<"save_info">>, JobDict, "ddfs"),
     JobInfo = #jobinfo{jobenvs = jobenvs(JobPack),
                        worker  = find(<<"worker">>, JobDict),
                        owner   = find(<<"owner">>, JobDict),
@@ -219,14 +219,14 @@ validate_save_info(S) when is_binary(S)->
     validate_save_info(binary_to_list(S));
 
 validate_save_info(S) ->
-    case lists:flatlength(S) < 5 of
+    case lists:flatlength(S) < 4 of
         true ->
-            lager:warning("Invalid save_info in jobpack: ~s", S),
+            lager:warning("Invalid save_info in jobpack: ~s is too short", S),
             throw({error, invalid_job_save_info});
         false ->
-            case string:substr(S, 5) of
-                "hdfs," -> S;
-                "ddfs," -> S;
+            case string:substr(S, 1, 4) of
+                "hdfs" -> S;
+                "ddfs" -> S;
                 _ -> lager:warning("Invalid save_info in jobpack: ~s", S),
                      throw({error, invalid_job_save_info})
             end
