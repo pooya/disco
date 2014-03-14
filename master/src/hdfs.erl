@@ -1,5 +1,5 @@
 -module(hdfs).
--export([save_to_hdfs/4]).
+-export([save_to_hdfs/4, get_compliant_name/1]).
 
 get_data_node_link(NameNode, HdfsPath, User) ->
     URL = "http://" ++ NameNode ++ "/webhdfs/v1" ++ HdfsPath ++ "?op=CREATE&user.name=" ++ User,
@@ -27,6 +27,10 @@ save_to_hdfs(NameNode, HdfsPath, User, LocalPath) ->
     DataNodeUrl = get_data_node_link(NameNode, HdfsPath, User),
     {ok, _} = put_to_data_node(DataNodeUrl, LocalPath),
     ok.
+
+-spec get_compliant_name(string()) -> string().
+get_compliant_name(Name) ->
+    re:replace(Name, ":", "_", [global, {return, list}]).
 
 % run will be
 % inets:start(),

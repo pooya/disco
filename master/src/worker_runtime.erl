@@ -374,7 +374,9 @@ save_hdfs([], _JN, _SaveInfo, Saved) ->
 save_hdfs([{_L, Loc, _Sz} = _H | Rest], JN, SaveInfo, Saved) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     LocalPath = disco:joburl_to_localpath(Loc),
-    hdfs:save_to_hdfs(NameNode, HdfsDir ++ JN, User, LocalPath),
+    error_logger:info_msg("JN is: ~w~n", [JN]),
+    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JN),
+                      User, LocalPath),
     save_hdfs(Rest, JN, SaveInfo, Saved).
 
 -spec save_locals([{label(), url(), data_size()}], integer(), node(),
