@@ -30,7 +30,8 @@ start_link(Config, NodeMon) ->
             error_logger:info_msg("~p starts on ~p", [?MODULE, node()]),
             ok = case node() =:= node(NodeMon) of
                 false ->
-                    disco_profile:start_apps();
+                    disco_profile:start_apps(),
+                    inets:start();
                 true -> ok
             end,
             disco_profile:new_histogram(ddfs_put);
