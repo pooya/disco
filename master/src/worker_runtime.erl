@@ -372,7 +372,7 @@ save_hdfs([], _JN, _SaveInfo, Saved) ->
     {ok, Saved};
 
 save_hdfs([{_L, Loc, _Sz} = _H | Rest], JN, SaveInfo, Saved) ->
-    ["hdsf", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
+    ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     LocalPath = disco:joburl_to_localpath(Loc),
     hdfs:save_to_hdfs(NameNode, HdfsDir ++ JN, User, LocalPath),
     save_hdfs(Rest, JN, SaveInfo, Saved).
