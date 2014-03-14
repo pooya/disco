@@ -33,7 +33,7 @@
 
 -spec init(task(), node()) -> state().
 init({#task_spec{jobname = JN, grouping = Grouping, group = Group,
-                 save_outputs = Save},
+                 save_outputs = Save, save_info = SaveInfo},
       #task_run{input = Inputs}} = Task, Master) ->
     #state{jobname = JN,
            task    = Task,
@@ -41,7 +41,8 @@ init({#task_spec{jobname = JN, grouping = Grouping, group = Group,
            host    = disco:host(node()),
            inputs  = worker_inputs:init(Inputs, Grouping, Group),
            start_time   = now(),
-           save_outputs = Save}.
+           save_outputs = Save,
+           save_info = SaveInfo}.
 
 -spec get_pid(state()) -> none | non_neg_integer().
 get_pid(#state{child_pid = Pid}) ->
