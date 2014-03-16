@@ -5,6 +5,7 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+-export([get_result_file/1]).
 
 -include("common_types.hrl").
 -include("gs_util.hrl").
@@ -381,9 +382,18 @@ save_hdfs(JobName, [Url | Rest], SaveInfo) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     lager:info("Job ~s Url: ~w~n", [JobName, Url]),
     LocalPath = disco:joburl_to_localpath(list_to_binary(Url)),
+    ResultFile = get_result_file(LocalPath),
+    LocalResultPath = disco:joburl_to_localpath(ResultFile),
     hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName),
-                      User, LocalPath),
+                      User, LocalResultPath),
     save_hdfs(JobName, Rest, SaveInfo).
+
+-spec get_result_file(string()) -> string().
+get_result_file(LocalPath) ->
+    {ok, File} = prim_file:open(LocalPath, [read, raw, binary]),
+    {ok, Data} = prim_file:read(File, 16000),
+    L = re:split(Data, " "),
+    lists:nth(2, L).
 
 -spec retry_task(host(), term(), task_info(), state()) -> state().
 retry_task(Host, _Error,
