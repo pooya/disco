@@ -325,7 +325,7 @@ results(#state{jobname = JobName,
 
 -spec save_locals_to_dfs(jobname(), path(), node(), task(), string()) ->
                                  {ok, [remote_output()]} | {error, term()}.
-save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
+save_locals_to_dfs(JN, FileName, Master, Task, _SaveInfo) ->
     IndexFile = filename:join(disco_worker:jobhome(JN), FileName),
     NReplicas = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     {#task_spec{taskid = TaskId}, #task_run{runid = RunId}} = Task,
@@ -345,10 +345,8 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
                 end,
             case Locals of
                 {ok, L} ->
-                    case lists:prefix("hdfs", SaveInfo) of
-                        true -> save_hdfs(L, JN, SaveInfo, []);
-                        _    -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, [])
-                    end;
+                        save_locals(L, NReplicas, Master, JN, TaskId, RunId,
+                            []);
                 {error, _} = E1 -> E1
             end;
         {error, _} = E2 ->
@@ -368,23 +366,13 @@ parse_index(Index) ->
             []
     end.
 
-save_hdfs([], _JN, _SaveInfo, Saved) ->
-    {ok, Saved};
-
-save_hdfs([{_L, Loc, _Sz} = _H | Rest], JN, SaveInfo, Saved) ->
-    ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
-    LocalPath = disco:joburl_to_localpath(Loc),
-    error_logger:info_msg("JN is: ~w~n", [JN]),
-    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JN),
-                      User, LocalPath),
-    save_hdfs(Rest, JN, SaveInfo, Saved).
-
 -spec save_locals([{label(), url(), data_size()}], integer(), node(),
                   jobname(), task_id(), task_run_id(), [remote_output()]) ->
                          {ok, [remote_output()]} | {error, term()}.
 save_locals([], _K, _M, _JN, _Tid, _Rid, Saved) ->
     {ok, Saved};
 save_locals([{L, Loc, Sz} = _H | Rest], K, M, JN, TaskId, RunId, Acc) ->
+    error_logger:info_msg("In save_locals K is: ~w~n", [K]),
     LocalPath = disco:joburl_to_localpath(Loc),
     % Since this task can be re-run, name blob replicas such that
     % collisions across re-runs of the same task are avoided.  Unused

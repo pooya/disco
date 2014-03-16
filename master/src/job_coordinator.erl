@@ -334,7 +334,8 @@ do_task_done(TaskId, Host, Result, #state{jobinfo = #jobinfo{jobname = JobName},
 
 -spec finish_pipeline(stage_name(), state()) -> state().
 finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
-                                                 save_results = Save},
+                                                 save_results = Save,
+                                                 save_info = SaveInfo},
                               tasks   = Tasks,
                               stage_info = SI} = S) ->
     #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
@@ -342,6 +343,10 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
                || TaskId <- Done],
     Results = [pipeline_utils:output_urls(O)
                || {_Id, O} <- lists:flatten(Outputs)],
+    case lists:prefix("hdfs", SaveInfo) of
+        true  -> save_hdfs(JobName, Results, SaveInfo);
+        false -> ok
+    end,
     case Save of
         false ->
             lager:info("Job ~s done, results: ~p", [JobName, Results]),
@@ -349,21 +354,36 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
             gen_server:cast(self(), pipeline_done),
             S;
         true ->
-            % Save the results into a tag.
-            Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
-            T = <<"tag://", Tag/binary>>,
-            Op = {put, urls, Results, internal},
-            case ddfs_master:tag_operation(Op, Tag) of
-                {ok, TagReps} ->
-                    lager:info("Job ~s done, results saved to ~p at ~p",
-                               [JobName, T, TagReps]),
-                    event_server:job_done_event(JobName, [T]);
-                E ->
-                    M = "Job ~s failed to save results to ~s: ~p",
-                    MArgs = [JobName, T, E],
-                    event_server:event(JobName, M, MArgs, none)
-            end
+            lager:info("Job ~s done Saving, results: ~p", [JobName, Results]),
+            save_ddfs(JobName, Results)
     end.
+
+save_ddfs(JobName, Results) ->
+    % Save the results into a tag.
+    Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
+    T = <<"tag://", Tag/binary>>,
+    Op = {put, urls, Results, internal},
+    case ddfs_master:tag_operation(Op, Tag) of
+        {ok, TagReps} ->
+            lager:info("Job ~s done, results saved to ~p at ~p",
+                       [JobName, T, TagReps]),
+            event_server:job_done_event(JobName, [T]);
+        E ->
+            M = "Job ~s failed to save results to ~s: ~p",
+            MArgs = [JobName, T, E],
+            event_server:event(JobName, M, MArgs, none)
+    end.
+
+save_hdfs(_JobName, [], _SaveInfo) ->
+    ok;
+
+save_hdfs(JobName, [Url | Rest], SaveInfo) ->
+    ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
+    lager:info("Job ~s Url: ~w~n", [JobName, Url]),
+    LocalPath = disco:joburl_to_localpath(list_to_binary(Url)),
+    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName),
+                      User, LocalPath),
+    save_hdfs(JobName, Rest, SaveInfo).
 
 -spec retry_task(host(), term(), task_info(), state()) -> state().
 retry_task(Host, _Error,
