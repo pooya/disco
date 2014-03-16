@@ -5,7 +5,6 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
--export([get_result_file/1]).
 
 -include("common_types.hrl").
 -include("gs_util.hrl").
@@ -388,7 +387,6 @@ save_hdfs(JobName, [Url | Rest], SaveInfo) ->
                       User, LocalResultPath),
     save_hdfs(JobName, Rest, SaveInfo).
 
--spec get_result_file(string()) -> string().
 get_result_file(LocalPath) ->
     {ok, File} = prim_file:open(LocalPath, [read, raw, binary]),
     {ok, Data} = prim_file:read(File, 16000),
