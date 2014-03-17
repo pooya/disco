@@ -610,6 +610,8 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                {first_run, true}  -> H;
                {_,            _}  -> none
            end,
+    lager:error("do_submit_tasks: host: ~w, hosts: ~w Selected: ~w ~n", [H,
+            Hosts, Host]),
     TaskRun = #task_run{runid  = RunId,
                         host   = Host,
                         input  = Inputs,
