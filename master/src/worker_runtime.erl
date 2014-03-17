@@ -360,7 +360,7 @@ save_hdfs(_JobName, [], _SaveInfo) ->
 
 save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
-    lager:info("Job ~s Loc: ~w~n", [JobName, Loc]),
+    error_logger:info_msg("Job ~s Loc: ~w~n", [JobName, Loc]),
     LocalPath = disco:joburl_to_localpath(Loc),
     hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName),
                       User, LocalPath),

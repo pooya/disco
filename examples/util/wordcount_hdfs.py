@@ -20,7 +20,7 @@ def getHdfsMaster(discoMaster):
     return rest.split(':')[0] + ':50070'
 
 class WordCount(Job):
-    save = False
+    save = True
     reduce_output_stream = (task_output_stream, plain_output_stream)
 
     @staticmethod
