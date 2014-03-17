@@ -334,8 +334,7 @@ do_task_done(TaskId, Host, Result, #state{jobinfo = #jobinfo{jobname = JobName},
 
 -spec finish_pipeline(stage_name(), state()) -> state().
 finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
-                                                 save_results = Save,
-                                                 save_info = SaveInfo},
+                                                 save_results = Save},
                               tasks   = Tasks,
                               stage_info = SI} = S) ->
     #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
@@ -343,10 +342,6 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
                || TaskId <- Done],
     Results = [pipeline_utils:output_urls(O)
                || {_Id, O} <- lists:flatten(Outputs)],
-    case lists:prefix("hdfs", SaveInfo) of
-        true  -> save_hdfs(JobName, Results, SaveInfo);
-        false -> ok
-    end,
     case Save of
         false ->
             lager:info("Job ~s done, results: ~p", [JobName, Results]),
@@ -373,25 +368,6 @@ save_ddfs(JobName, Results) ->
             MArgs = [JobName, T, E],
             event_server:event(JobName, M, MArgs, none)
     end.
-
-save_hdfs(_JobName, [], _SaveInfo) ->
-    ok;
-
-save_hdfs(JobName, [Url | Rest], SaveInfo) ->
-    ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
-    lager:info("Job ~s Url: ~w~n", [JobName, Url]),
-    LocalPath = disco:joburl_to_localpath(list_to_binary(Url)),
-    ResultFile = get_result_file(LocalPath),
-    LocalResultPath = disco:joburl_to_localpath(ResultFile),
-    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName),
-                      User, LocalResultPath),
-    save_hdfs(JobName, Rest, SaveInfo).
-
-get_result_file(LocalPath) ->
-    {ok, File} = prim_file:open(LocalPath, [read, raw, binary]),
-    {ok, Data} = prim_file:read(File, 16000),
-    L = re:split(Data, " "),
-    lists:nth(2, L).
 
 -spec retry_task(host(), term(), task_info(), state()) -> state().
 retry_task(Host, _Error,
@@ -603,6 +579,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
     #task_info{spec = TaskSpec, failed_hosts = FailedHosts}
         = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage, group = {_L, H}, input = Input} = TaskSpec,
+    %lager:error("do_submit_tasks: ~w~n", [H]),
     Inputs = jc_utils:task_inputs(Input, DataMap),
     % On first_run, we use host selected by grouping, if it belongs to
     % the cluster; otherwise, we let the host-allocator choose it.
