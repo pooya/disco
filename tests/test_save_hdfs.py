@@ -1,14 +1,25 @@
-from disco.ddfs import DDFS
-from disco.job import JobChain
 from disco.test import TestCase, TestJob
 from disco.worker.task_io import task_output_stream
-from disco.compat import str_to_bytes
-from disco.worker.task_io import ClassicFile
+
+class DiscoPlainOut(object):
+    def __init__(self, stream):
+        self.stream = stream
+
+    def add(self, k, v):
+        k, v = str(k), str(v)
+        self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
+
+    def close(self):
+        pass
+
+def plain_output_stream(stream, partition, url, params):
+    return DiscoPlainOut(stream)
 
 class SaveMapJob(TestJob):
     partitions = None
     save = False
     save_info = "hdfs,devdisco03:50070,shayan,/user/shayan/"
+    map_output_stream= (task_output_stream, plain_output_stream)
 
     @staticmethod
     def map(e, params):
