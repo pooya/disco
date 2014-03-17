@@ -17,7 +17,7 @@ put_to_data_node(URL, LocalPath) ->
             {ok, Data, Fd}
         end
     end,
-    {ok, Fd1} = file:open(LocalPath, [binary, read]),
+    {ok, Fd1} = file:open(LocalPath, [binary, read, raw]),
     Response = httpc:request(put, {URL, [], "text/plain",
             {chunkify, BodyFun, Fd1}}, [], []),
     {ok, {{_,201,_}, _, []}} = Response.
