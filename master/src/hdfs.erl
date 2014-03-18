@@ -22,4 +22,5 @@ get_compliant_name(Name) ->
 
 % run will be
 % inets:start(),
-% hdfs:save_to_hdfs("devdisco03:50070", "/user/shayan/test18", "shayan", "test_data.dat").
+% hdfs:save_to_hdfs("devdisco03:50070", "/user/shayan/test18", "shayan", "/tmp/simple").
+
