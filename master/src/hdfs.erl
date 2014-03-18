@@ -12,8 +12,9 @@ get_data_node_link(NameNode, HdfsPath, User) ->
 -spec save_to_hdfs(string(), string(), string(), string()) -> ok.
 save_to_hdfs(NameNode, HdfsPath, User, LocalPath) ->
     DataNodeUrl = get_data_node_link(NameNode, HdfsPath, User),
+    Self = self(),
     spawn_link(fun() -> ddfs_http:http_put_conn(LocalPath, DataNodeUrl,
-                    self()) end),
+                    Self) end),
     receive S -> S end.
 
 -spec get_compliant_name(string()) -> string().

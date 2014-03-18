@@ -86,7 +86,11 @@ read_response(Socket) ->
     case string:tokens(Resp, "\r\n") of
         ["HTTP/1.0 201" ++ _|_] ->
             {ok, list_to_binary(Body)};
+        ["HTTP/1.1 201" ++ _|_] ->
+            {ok, list_to_binary(Body)};
         ["HTTP/1.0 " ++ Code|_] ->
+            {error, {list_to_integer(string:sub_word(Code, 1, 32)), Body}};
+        ["HTTP/1.1 " ++ Code|_] ->
             {error, {list_to_integer(string:sub_word(Code, 1, 32)), Body}};
         _ ->
             {error, invalid_response}
