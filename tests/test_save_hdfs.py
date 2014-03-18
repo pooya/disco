@@ -17,7 +17,7 @@ def plain_output_stream(stream, partition, url, params):
 
 class SaveMapJob(TestJob):
     partitions = None
-    save = False
+    save = True
     save_info = "hdfs,devdisco03:50070,shayan,/user/shayan/"
     map_output_stream= (task_output_stream, plain_output_stream)
 

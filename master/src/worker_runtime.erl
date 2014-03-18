@@ -346,7 +346,10 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
             case Locals of
                 {ok, L} ->
                         case lists:prefix("hdfs", SaveInfo) of
-                            true  -> save_hdfs(JN, L, SaveInfo);
+                            true  -> save_hdfs(JN, L, SaveInfo),
+                                save_locals(L, NReplicas, Master, JN, TaskId,
+                                    RunId, []);
+
                             false -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, [])
                         end;
                 {error, _} = E1 -> E1
