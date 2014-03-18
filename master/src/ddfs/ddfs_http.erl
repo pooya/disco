@@ -38,7 +38,7 @@ http_put_conn(SrcPath, DstUrl, Parent) ->
     Size = content_length(SrcPath, Parent),
     Head = ["PUT ", Path, "?", Query, " HTTP/1.0\r\n",
             "User-Agent: ddfs_http\r\n",
-            "Host: ", Host, ":", Port , "\r\n",
+            "Host: ", Addr , "\r\n",
             "Accept: */*", "\r\n",
             "Content-Length: ", Size, "\r\n\r\n"],
     case gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, false}],
