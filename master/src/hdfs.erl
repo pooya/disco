@@ -15,7 +15,10 @@ save_to_hdfs(NameNode, HdfsPath, User, LocalPath) ->
     Self = self(),
     spawn_link(fun() -> ddfs_http:http_put_conn(LocalPath, DataNodeUrl,
                     Self) end),
-    receive S -> S end.
+    receive S ->
+            error_logger:info_msg("Hdfs operation done: ~p~n", [S]),
+            S
+    end.
 
 -spec get_compliant_name(string()) -> string().
 get_compliant_name(Name) ->
