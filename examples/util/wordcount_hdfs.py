@@ -11,7 +11,7 @@ In this example, we make the following assumptions:
     5. The Disco master and Hadoop NameNode are on the same machine.
 """
 USER = "shayan"
-OUTPUT_DIR = "/user/" + USER
+OUTPUT_DIR = "/user/" + USER + "/"
 INPUT_FILE = "/user/" + USER + "/chekhov"
 
 def getHdfsMaster(discoMaster):
