@@ -136,6 +136,7 @@ def chunk(program, tag, *urls):
     max_record_size = getSizeIfSupplied(program.options.max_record_size, MAX_RECORD_SIZE)
 
     reader = reify(program.options.reader or 'None')
+
     tag, blobs = program.ddfs.chunk(tag,
                                     chain(urls, program.blobs(*tags)),
                                     input_stream=stream,

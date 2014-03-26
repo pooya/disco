@@ -167,9 +167,25 @@ init(_Args) ->
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
+<<<<<<< HEAD
     {ok, #state{cache_refresher = Refresher}}.
 
 -type choose_write_nodes_msg() :: {choose_write_nodes, non_neg_integer(), [node()], [node()]}.
+=======
+<<<<<<< HEAD
+    {ok, #state{tags = gb_trees:empty(),
+                tag_cache = false,
+                nodes = [],
+                write_blacklist = [],
+                read_blacklist = []}}.
+
+=======
+    put(use_s3, string:equal(disco:get_setting("DISCO_USE_S3"), "true")),
+    put(s3_bucket, disco:get_setting("DISCO_S3_BUCKET")),
+    {ok, #state{cache_refresher = Refresher}}.
+
+-type choose_write_nodes_msg() :: {choose_write_nodes, non_neg_integer(), [node()]}.
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
 -type new_blob_msg() :: {new_blob, string() | object_name(), non_neg_integer(), [node()]}.
 -type tag_msg() :: {tag, ddfs_tag:call_msg(), tagname()}.
 -spec handle_call(dbg_state_msg(), from(), state()) ->
@@ -328,10 +344,22 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
                          new_blob_result().
 do_new_blob(_Obj, K, _Include, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
+<<<<<<< HEAD
 do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
     {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList),
     Urls = [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj]
             || N <- WriteNodes],
+=======
+do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
+    {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Exclude, BlackList),
+    Urls = case get(use_s3) of
+               true ->
+                   [lists:flatten(["s3://", get(s3_bucket), "/blob/", Obj]) | 
+                    [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj] || N <- WriteNodes]];
+                false ->
+                    [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj] || N <- WriteNodes]
+            end,
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
     {ok, Urls}.
 
 % Tag request: Start a new tag server if one doesn't exist already. Forward

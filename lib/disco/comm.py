@@ -1,5 +1,13 @@
+<<<<<<< HEAD
 import os, random, struct, time, socket, base64
 from disco.compat import BytesIO, file, httplib, basestring, str_to_bytes
+=======
+import httplib, os, random, struct, time, socket, base64, string
+from cStringIO import StringIO
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
+
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
 from disco.error import CommError
 from disco.settings import DiscoSettings
 from disco.util import iterify, urlresolve, urlsplit
@@ -16,10 +24,14 @@ except ImportError:
     nocurl = True
 
 if nocurl:
+<<<<<<< HEAD
     HTTPConnection = httplib.HTTPConnection
+=======
+    from httplib import HTTPConnection,HTTPSConnection
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
 else:
     from disco import comm_pycurl
-    from disco.comm_pycurl import HTTPConnection
+    from disco.comm_pycurl import HTTPConnection,HTTPSConnection
 
 def isredirection(status):
     return str(status).startswith('3')
@@ -50,10 +62,26 @@ def resolveuri(baseuri, uri):
 
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
-
+    if scheme == 'http':
+        conn_cls = HTTPConnection
+    elif scheme == 'https':
+        conn_cls = HTTPSConnection
+    elif scheme == 's3':
+      conn = S3Connection(settings['AWS_ACCESS_KEY_ID'], settings['AWS_SECRET_KEY'])
+      bucket = conn.create_bucket(netloc[0])
+      key = Key(bucket, path)
+      # grr urllib2 doesn't like wild card ssl certs, so force http
+      url = key.generate_url(60*60*24, force_http=True)
+      conn_cls = HTTPConnection
+      
     try:
+<<<<<<< HEAD
         conn = HTTPConnection(str(netloc))
         conn.request(method, '/{0}'.format(path), body=data, headers=headers)
+=======
+        conn = conn_cls(str(netloc))
+        conn.request(method, '/%s' % path, body=data, headers=headers)
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
         response = conn.getresponse()
         status = response.status
         errmsg = response.reason
@@ -89,12 +117,58 @@ def download(url, method='GET', data=None, offset=(), token=None):
                    headers=headers).read()
 
 def upload(urls, source, token=None, **kwargs):
+<<<<<<< HEAD
     data = FileSource(source).read()
     headers = auth_header(token)
     if nocurl:
         return [request('PUT', url, data=data, headers=headers).read()
                 for url in urls]
     return list(comm_pycurl.upload(urls, data, token, **kwargs))
+=======
+    def _is_s3(url):
+        return string.find(url, "s3://") == 0
+
+    def _split_urls(urls):
+        s3_urls, non_s3_urls = [], []
+
+        for url in urls:
+            if _is_s3(url):
+                s3_urls.append(url)
+            else:
+                non_s3_urls.append(url)
+
+        return s3_urls, non_s3_urls
+
+    def _upload(url):
+        if _is_s3(url):
+            key = os.path.basename(url)
+            (bucket, dirname) = os.path.split(os.path.dirname(url)[5:])
+            s3_put(bucket, os.path.join(dirname, key), source)
+            return ("\"%s\"" % url)
+        else:
+            return request('PUT',
+                           url,
+                           data=source.read(),
+                           headers=auth_header(token)).read()
+
+    source = FileSource(source)
+
+    if nocurl:
+        return [_upload(url) for url in urls]
+
+    s3_urls, non_s3_urls = _split_urls(urls)
+    return [_upload(s3_url) for s3_url in s3_urls] + list(comm_pycurl.upload(non_s3_urls, source, token, **kwargs))
+
+def s3_put(bucket, key, source):
+    conn = S3Connection(settings['AWS_ACCESS_KEY_ID'], settings['AWS_SECRET_KEY'])
+    bucket = conn.create_bucket(bucket)
+    k = Key(bucket)
+
+    source = FileSource(source)
+
+    k.key = key
+    k.set_contents_from_string(source.read())
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
 
 def open_url(url, *args, **kwargs):
     from disco.util import schemesplit
@@ -157,6 +231,7 @@ class Connection(object):
             chunk = last + next_chunk
 
     def __len__(self):
+<<<<<<< HEAD
         if self.response == None:
             return 0
         if self.response.getheader('content-range', None) != None:
@@ -164,6 +239,13 @@ class Connection(object):
         elif self.response.getheader('transfer-encoding') == 'chunked':
             return len(self.buf)
         return int(self.response.getheader('content-length', 0))
+=======
+        if 'content-range' in self.headers:
+            return int(self.headers['content-range'].split('/')[1])
+        elif self.headers.get('transfer-encoding') == 'chunked':
+            return len(self.buf)
+        return int(self.headers.get('content-length', 0))
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
 
     def close(self):
         pass

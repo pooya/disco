@@ -9,9 +9,18 @@ See also: :ref:`DDFS`.
         Parameters below which are indicated as tags can be specified as
         a `tag://` URL, or the name of the tag.
 """
+<<<<<<< HEAD
 import os, re, random, json
 from disco.compat import StringIO, BytesIO, urlencode, basestring, bytes_to_str
 from disco.comm import upload, download, open_remote
+=======
+import os, re, random
+from cStringIO import StringIO
+from urllib import urlencode
+
+from disco import json
+from disco.comm import upload, s3_put, download, open_remote
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
 from disco.error import CommError
 from disco.fileutils import Chunker, CHUNK_SIZE, MAX_RECORD_SIZE
 from disco.settings import DiscoSettings
@@ -151,6 +160,7 @@ class DDFS(object):
                             retries=retries)
                  for reps in urls
                  for n, chunk in enumerate(chunk_iter(reps))]
+
         return (self.tag(tag,
                          blobs,
                          delayed=delayed,
@@ -234,7 +244,7 @@ class DDFS(object):
                                   to_master=False)
                     )
                     try:
-                        yield open_remote(url)
+                        yield open_remote(proxy_url(url,proxy=self.proxy))
                         break
                     except CommError as error:
                         comm_error = error
@@ -424,5 +434,9 @@ class DDFS(object):
                                         meth='PUT',
                                         to_master=to_master))
                 for url in iterify(urls)]
+<<<<<<< HEAD
         url = urls[0]
+=======
+
+>>>>>>> 8c4715a... Moved setup.py to the root directory to make pip happy.
         return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)
