@@ -97,7 +97,7 @@ class Stage(object):
     """
     def __init__(self, name='', init=None, process=None, done=None,
                  input_hook=input_hook, input_chain=[], output_chain=[],
-                 combine=False, sort=False):
+                 combine=False, sort=False, save_results=False):
         self.name = name
         self.init = init
         self.done = done
@@ -108,6 +108,7 @@ class Stage(object):
         self.output_chain = output_chain
         self.combine = combine
         self.sort = sort
+        self.save_results = save_results
 
     pipeline_input_chain = [task_io.task_input_stream]
     interior_input_chain = [task_io.task_input_stream, task_io.chain_reader]
@@ -186,6 +187,12 @@ class Worker(worker.Worker):
                         'pipeline': pipeline,
                         'inputs' : pipe_input})
         return jobdict
+
+    def should_save_results(self, task, job, jobargs):
+        pipeline = dict([(s.name, (idx, s))
+                         for idx, (g, s) in enumerate(self['pipeline'])])
+        _, stage = pipeline[task.stage]
+        return stage.save_results
 
     def run(self, task, job, **jobargs):
         # Entry point into the executing pipeline worker task.  This
