@@ -348,7 +348,7 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
             case Locals of
                 {ok, L} ->
                         case lists:prefix("hdfs", SaveInfo) of
-                            true  -> save_hdfs(JN, L, SaveInfo),
+                            true  -> save_hdfs(JN, L, SaveInfo, TaskId),
                                 save_locals(L, NReplicas, Master, JN, TaskId,
                                     RunId, []);
 
@@ -366,7 +366,8 @@ save_hdfs(_JobName, [], _SaveInfo) ->
 save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     LocalPath = disco:joburl_to_localpath(Loc),
-    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName),
+    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName) ++
+        "/" ++ hdfs:get_compliant_name(TaskId),
                       User, LocalPath),
     save_hdfs(JobName, Rest, SaveInfo).
 

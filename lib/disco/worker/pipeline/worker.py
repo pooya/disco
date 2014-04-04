@@ -189,10 +189,11 @@ class Worker(worker.Worker):
         return jobdict
 
     def should_save_results(self, task, job, jobargs):
-        pipeline = dict([(s.name, (idx, s))
-                         for idx, (g, s) in enumerate(self['pipeline'])])
-        _, stage = pipeline[task.stage]
-        return stage.save_results
+        return False;
+        #pipeline = dict([(s.name, (idx, s))
+        #                 for idx, (g, s) in enumerate(self['pipeline'])])
+        #_, stage = pipeline[task.stage]
+        #return stage.save_results
 
     def run(self, task, job, **jobargs):
         # Entry point into the executing pipeline worker task.  This
