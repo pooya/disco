@@ -43,6 +43,7 @@ def reduce(interface, state, label, inp):
         out.add(currentWord, count)
 
 class CountWords(Job):
+    save = True
     def __init__(self):
         from disco.worker.pipeline.worker import Worker
         super(CountWords, self).__init__(worker = Worker())
@@ -62,8 +63,9 @@ if __name__ == '__main__':
         sys.exit(1)
     from wiki_reader import CountWords
     job = CountWords()
-    #job.save_info = "hdfs," + getHdfsMaster(job.disco.master) + "," + 'shayan' + ","+"/user/shayan/"
-
+    job.save = True
+    job.save_results = True
+    job.save_info = "hdfs," + getHdfsMaster(job.disco.master) + ",shayan,/user/shayan/"
     job.run(input=["tag://" + sys.argv[1]])
 
     if SAVE:

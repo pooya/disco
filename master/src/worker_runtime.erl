@@ -309,6 +309,7 @@ results(#state{jobname = JobName,
                output_filename = FileName,
                local_labels = Labels,
                remote_outputs = ROutputs}) ->
+    error_logger:warning_msg("Here not saving"),
     {ok, disco:enum([local_results(JobName, Host, FileName, Labels)
                      | [{data, RO} || RO <- ROutputs]])};
 results(#state{jobname = JobName,
@@ -318,6 +319,7 @@ results(#state{jobname = JobName,
                save_info = SaveInfo,
                output_filename = FileName,
                remote_outputs = ROutputs}) ->
+    error_logger:warning_msg("Here in save"),
     case save_locals_to_dfs(JobName, FileName, Master, Task, SaveInfo) of
         {ok, Locs} -> {ok, disco:enum([{data, O} || O <- ROutputs ++ Locs])};
         E          -> E
