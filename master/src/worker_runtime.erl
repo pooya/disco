@@ -360,7 +360,7 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
             E2
     end.
 
-save_hdfs(_JobName, [], _SaveInfo, _) ->
+save_hdfs(_JobName, [], _SaveInfo, _, _) ->
     ok;
 
 save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo, TaskId, Index) ->
@@ -368,7 +368,7 @@ save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo, TaskId, Index) ->
     LocalPath = disco:joburl_to_localpath(Loc),
     hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName) ++
         "/" ++ hdfs:get_compliant_name(TaskId) ++ "_" ++
-        lists:flatten(io_lib:format("~p", [I])),
+        lists:flatten(io_lib:format("~p", [Index])),
                       User, LocalPath),
     save_hdfs(JobName, Rest, SaveInfo, TaskId, Index + 1).
 
