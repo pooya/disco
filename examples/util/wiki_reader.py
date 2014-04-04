@@ -5,6 +5,8 @@ from disco.worker.task_io import chain_reader, task_input_stream
 from disco.compat import str_to_bytes
 import hashlib
 
+SAVE=True
+
 def getHash(line):
     return int(hashlib.md5(str_to_bytes(line)).hexdigest(), 16) % 128
 
@@ -47,14 +49,25 @@ class CountWords(Job):
     pipeline = [("split", Stage("map", process=map,
                 input_chain = [task_input_stream, chain_reader])),
                 ("group_label", Stage("reduce", process=reduce, combine=True,
-                    sort=True))]
+                    sort=True, save_results=SAVE))]
+
+def getHdfsMaster(discoMaster):
+    from disco.util import schemesplit
+    _, rest = schemesplit(discoMaster)
+    return rest.split(':')[0] + ':50070'
 
 if __name__ == '__main__':
     import sys
     if len(sys.argv) != 2:
         sys.exit(1)
     from wiki_reader import CountWords
-    job = CountWords().run(input=["tag://" + sys.argv[1]])
+    job = CountWords()
+    #job.save_info = "hdfs," + getHdfsMaster(job.disco.master) + "," + 'shayan' + ","+"/user/shayan/"
 
-    for line, count in result_iterator(job.wait(show=False)):
-        print(line, count)
+    job.run(input=["tag://" + sys.argv[1]])
+
+    if SAVE:
+        job.wait(show=True)
+    else:
+        for line, count in result_iterator(job.wait(show=False)):
+            print(line, count)
