@@ -367,7 +367,7 @@ save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo, TaskId, Index) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     LocalPath = disco:joburl_to_localpath(Loc),
     Name = HdfsDir ++ hdfs:get_compliant_name(JobName) ++
-        "/" ++ %hdfs:get_compliant_name(TaskId) ++
+        "/" ++ integer_to_list(TaskId) ++
         "_" ++ integer_to_list(Index),
 
     hdfs:save_to_hdfs(NameNode, Name, User, LocalPath),
