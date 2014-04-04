@@ -366,10 +366,11 @@ save_hdfs(_JobName, [], _SaveInfo, _, _) ->
 save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo, TaskId, Index) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     LocalPath = disco:joburl_to_localpath(Loc),
-    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName) ++
-        "/" ++ hdfs:get_compliant_name(TaskId) ++ "_" ++
-        lists:flatten(io_lib:format("~p", [Index])),
-                      User, LocalPath),
+    Name = HdfsDir ++ hdfs:get_compliant_name(JobName) ++
+        "/" ++ %hdfs:get_compliant_name(TaskId) ++
+        "_" ++ integer_to_list(Index),
+
+    hdfs:save_to_hdfs(NameNode, Name, User, LocalPath),
     save_hdfs(JobName, Rest, SaveInfo, TaskId, Index + 1).
 
 -spec parse_index(binary()) -> [{label(), url(), data_size()}].
