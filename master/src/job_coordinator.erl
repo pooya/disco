@@ -494,11 +494,13 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
             % we need to start the tasks in the next stage.
             case jc_utils:stage_info_opt(Next, SI) of
                 none ->
-                    SaveOutputs =
-                        (pipeline_utils:next_stage(P, Next) == done) andalso Save,
+                    NS = pipeline_utils:next_stage(P, Next),
+                    lager:info("No info on this task ~w ~w", [NS, Save]),
+                    SaveOutputs = (NS == done) andalso Save,
                     start_next_stage(Stage, Next, Grouping, SaveOutputs,
                         SaveInfo, S);
                 _ ->
+                    lager:info("info found for this task."),
                     S
             end
     end.

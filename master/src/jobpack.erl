@@ -76,6 +76,7 @@ core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
     SaveResults = find(<<"save_results">>, JobDict, false),
     SaveInfo = find(<<"save_info">>, JobDict, "ddfs"),
+    lager:warning("inputs in jobpack: ~w ~s", [SaveResults, SaveInfo]),
     JobInfo = #jobinfo{jobenvs = jobenvs(JobPack),
                        worker  = find(<<"worker">>, JobDict),
                        owner   = find(<<"owner">>, JobDict),
