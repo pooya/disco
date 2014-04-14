@@ -10,7 +10,7 @@ from disco.worker.task_io import task_output_stream
 from functools import partial
 
 class WordCount(Job):
-    reduce_output_stream = (task_output_stream, partial(lmdb_output, name="test"))
+    reduce_output_stream = (task_output_stream, partial(lmdb_output, dbname="test"))
 
     @staticmethod
     def map(line, params):

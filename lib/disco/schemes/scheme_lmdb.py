@@ -25,8 +25,8 @@ class LmdbOutputStream(file):
         db.close()
         env.close()
 
-def lmdb_output(stream, partition, url, params, name):
-    return LmdbOutputStream(url, name), 'lmdb:{0}'.format(url.split(':', 1)[1])
+def lmdb_output(stream, partition, url, params, dbname):
+    return LmdbOutputStream(url, dbname=dbname), 'lmdb:{0}'.format(url.split(':', 1)[1])
 
 def lmdb_inter_stream_out(stream, partition, url, params, dbname):
     return LmdbOutputStream(path, dbname=dbname)
