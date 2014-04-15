@@ -14,7 +14,7 @@ class LmdbOutputStream(file):
         self.Dict[k].append(v)
 
     def close(self):
-        env, txn, db = mdb.mdb_write_handle(self.path, 1*mdb.MB, db_name=self.db_name,
+        env, txn, db = mdb.mdb_write_handle(self.path, 1*mdb.MB, dup=True, db_name=self.db_name,
                                 open_flags=mdb.MDB_NOSUBDIR|mdb.MDB_NOLOCK)
 
         for k, vs in self.Dict.items():
@@ -36,7 +36,7 @@ class LmdbStream(file):
     def __init__(self, path, db_name):
         self.env, self.txn, self.db = mdb.mdb_read_handle(path, db_name=db_name,
                 open_flags=mdb.MDB_NOSUBDIR|mdb.MDB_NOLOCK)
-        self.generator = self.db.items(self.txn)
+        self.generator = self.db.dup_items(self.txn)
         self.path = path
 
     def __iter__(self):
@@ -65,7 +65,9 @@ if __name__ == '__main__':
     import sys
 
     File = sys.argv[1]
-    r = LmdbStream(File, "test")
+    print "file: ", File
+    r = LmdbStream(path=File, db_name="test")
+    print File, " : ", "test"
     for i in r:
         print i
 #    env, txn, db = mdb.mdb_read_handle(File, db_name="test",
