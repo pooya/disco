@@ -9,9 +9,9 @@
 
 -record(state, {
           % seq_id() -> {input_id(), data_input()}
-          inputs     = gb_trees:empty() :: gb_tree(),
+          inputs     = gb_trees:empty() :: disco_gbtree(),
           % {seq_id(), rep_id()} -> fail_info()
-          input_map  = gb_trees:empty() :: gb_tree(),
+          input_map  = gb_trees:empty() :: disco_gbtree(),
           max_seq_id                    :: seq_id()}).
 -type state() :: #state{}.
 
@@ -56,7 +56,7 @@ all(S) ->
     include(all_seq_ids(S), S).
 
 -spec replicas(seq_id(), rep_id(), label(), [{erlang:timestamp(), replica()}],
-               gb_tree()) -> {all | label(), [replica()]}.
+               disco_gbtree()) -> {all | label(), [replica()]}.
 replicas(SeqId, Rid, Label, Replicas, Map) ->
     case gb_trees:lookup({SeqId, Rid}, Map) of
         none ->

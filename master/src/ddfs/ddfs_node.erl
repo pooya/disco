@@ -17,7 +17,7 @@
                 vols :: [volume()],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
-                tags :: gb_tree(),
+                tags :: disco_gbtree(),
                 scanner :: pid()}).
 -type state() :: #state{}.
 
@@ -168,7 +168,7 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
 
 -type casts() :: rescan_tags
                | {update_vols, [volume()]}
-               | {update_tags, gb_tree()}.
+               | {update_tags, disco_gbtree()}.
 -spec handle_cast(casts(), state()) -> gs_noreply().
 handle_cast(rescan_tags, #state{scanner = Scanner} = S) ->
     Scanner ! rescan,
@@ -364,7 +364,7 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(path(), [volume()]) -> {ok, gb_tree()}.
+-spec find_tags(path(), [volume()]) -> {ok, disco_gbtree()}.
 find_tags(Root, Vols) ->
     {ok,
      lists:foldl(fun({_Space, VolName}, Tags) ->
@@ -374,7 +374,7 @@ find_tags(Root, Vols) ->
                                               end, Tags)
                  end, gb_trees:empty(), Vols)}.
 
--spec parse_tag(nonempty_string(), volume_name(), gb_tree()) -> gb_tree().
+-spec parse_tag(nonempty_string(), volume_name(), disco_gbtree()) -> disco_gbtree().
 parse_tag("!" ++ _, _, Tags) -> Tags;
 parse_tag(Tag, VolName, Tags) ->
     {TagName, Time} = ddfs_util:unpack_objname(Tag),

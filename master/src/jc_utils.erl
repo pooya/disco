@@ -14,7 +14,7 @@
          collect_stagewise/5, wakeup_waiters/3]).
 
 % information about a stage which may not have yet run.
--spec stage_info_opt(stage_name(), gb_tree()) -> none | stage_info().
+-spec stage_info_opt(stage_name(), disco_gbtree()) -> none | stage_info().
 stage_info_opt(Stage, Info) ->
     case gb_trees:lookup(Stage, Info) of
         none -> none;
@@ -22,17 +22,17 @@ stage_info_opt(Stage, Info) ->
     end.
 
 % information about a stage which the caller guarantees exists.
--spec stage_info(stage_name(), gb_tree()) -> stage_info().
+-spec stage_info(stage_name(), disco_gbtree()) -> stage_info().
 stage_info(Stage, SI) ->
     gb_trees:get(Stage, SI).
 
--spec update_stage(stage_name(), stage_info(), gb_tree()) -> gb_tree().
+-spec update_stage(stage_name(), stage_info(), disco_gbtree()) -> disco_gbtree().
 update_stage(Stage, Info, SI) ->
     gb_trees:enter(Stage, Info, SI).
 
 -type task_op() :: run | stop | done.
--spec update_stage_tasks(stage_name(), task_id(), task_op(), gb_tree())
-                        -> gb_tree().
+-spec update_stage_tasks(stage_name(), task_id(), task_op(), disco_gbtree())
+                        -> disco_gbtree().
 update_stage_tasks(S, Id, Op, SI) ->
     mod_stage_tasks(S, Id, Op, stage_info(S, SI), SI).
 mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
@@ -46,59 +46,59 @@ mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
 
 % If this is the last pending task in the stage in order for the stage
 % to be done.
--spec last_stage_task(stage_name(), task_id(), gb_tree()) -> boolean().
+-spec last_stage_task(stage_name(), task_id(), disco_gbtree()) -> boolean().
 last_stage_task(Stage, TaskId, SI) ->
     #stage_info{done = Done, all = All} = stage_info(Stage, SI),
     ((length(Done) + 1 =:= All) and (not lists:member(TaskId, Done))).
 
--spec is_running(task_id(), gb_tree(), gb_tree()) -> boolean().
+-spec is_running(task_id(), disco_gbtree(), disco_gbtree()) -> boolean().
 is_running(TaskId, Tasks, SI) ->
     #task_info{spec = #task_spec{taskid = TaskId, stage = Stage}}
         = task_info(TaskId, Tasks),
     #stage_info{done = Done} = stage_info(Stage, SI),
     lists:member(TaskId, Done).
 
--spec is_waiting(task_id(), gb_tree()) -> boolean().
+-spec is_waiting(task_id(), disco_gbtree()) -> boolean().
 is_waiting(TaskId, Tasks) ->
     #task_info{depends = Depends} = task_info(TaskId, Tasks),
     Depends =/= [].
 
--spec task_info(input | task_id(), gb_tree()) -> task_info().
+-spec task_info(input | task_id(), disco_gbtree()) -> task_info().
 task_info(TaskId, Tasks) ->
     gb_trees:get(TaskId, Tasks).
 
--spec task_spec(input, gb_tree()) -> input;
-               (task_id(), gb_tree()) -> task_spec().
+-spec task_spec(input, disco_gbtree()) -> input;
+               (task_id(), disco_gbtree()) -> task_spec().
 task_spec(TaskId, Tasks) ->
     (task_info(TaskId, Tasks))#task_info.spec.
 
--spec task_outputs(input | task_id(), gb_tree()) -> [task_output()].
+-spec task_outputs(input | task_id(), disco_gbtree()) -> [task_output()].
 task_outputs(TaskId, Tasks) ->
     (task_info(TaskId, Tasks))#task_info.outputs.
 
 % This should only be called for new tasks.
--spec add_task_spec(task_id(), task_spec(), gb_tree()) -> gb_tree().
+-spec add_task_spec(task_id(), task_spec(), disco_gbtree()) -> disco_gbtree().
 add_task_spec(TaskId, TaskSpec, Tasks) ->
     gb_trees:enter(TaskId, #task_info{spec = TaskSpec}, Tasks).
 
--spec update_task_info(task_id(), task_info(), gb_tree()) -> gb_tree().
+-spec update_task_info(task_id(), task_info(), disco_gbtree()) -> disco_gbtree().
 update_task_info(TaskId, TInfo, Tasks) ->
     gb_trees:enter(TaskId, TInfo, Tasks).
 
 % Input utilities.
--spec add_input(input_id(), data_info(), gb_tree()) -> gb_tree().
+-spec add_input(input_id(), data_info(), disco_gbtree()) -> disco_gbtree().
 add_input(InputId, DInfo, DataMap) ->
     gb_trees:enter(InputId, DInfo, DataMap).
 
--spec input_info(input_id(), gb_tree()) -> data_info().
+-spec input_info(input_id(), disco_gbtree()) -> data_info().
 input_info(InputId, DataMap) ->
     gb_trees:get(InputId, DataMap).
 
--spec update_input_info(input_id(), data_info(), gb_tree()) -> gb_tree().
+-spec update_input_info(input_id(), data_info(), disco_gbtree()) -> disco_gbtree().
 update_input_info(InputId, DInfo, DataMap) ->
     gb_trees:enter(InputId, DInfo, DataMap).
 
--spec task_inputs([input_id()], gb_tree()) -> [{input_id(), data_input()}].
+-spec task_inputs([input_id()], disco_gbtree()) -> [{input_id(), data_input()}].
 task_inputs(InputIds, DataMap) ->
     [{Id, (gb_trees:get(Id, DataMap))#data_info.source} || Id <- InputIds].
 
@@ -129,7 +129,7 @@ find_usable_input_hosts(#data_info{failures = Failures}) ->
 % Input regeneration and task re-run utilities.
 
 % Find the inputs that are local to the specified list of hosts.
--spec local_inputs([input_id()], gb_set(), gb_tree()) -> [input_id()].
+-spec local_inputs([input_id()], disco_gbset(), disco_gbtree()) -> [input_id()].
 local_inputs(InputIds, Hosts, DataMap) ->
     local_inputs(InputIds, Hosts, DataMap, []).
 local_inputs([], _Hosts, _DataMap, Acc) ->
@@ -193,8 +193,8 @@ local_inputs([Id | Rest], Hosts, DataMap, Acc) ->
 % already waiting or running, we don't recurse to its input generating
 % tasks.
 
--spec collect_stagewise(task_id(), gb_tree(), gb_tree(), gb_tree(), gb_set())
-                       -> {gb_set(), gb_tree()}.
+-spec collect_stagewise(task_id(), disco_gbtree(), disco_gbtree(), disco_gbtree(), disco_gbset())
+                       -> {disco_gbset(), disco_gbtree()}.
 collect_stagewise(TaskId, Tasks, SI, DataMap, FHosts) ->
     collect_stagewise(gb_sets:from_list([TaskId]),  % Cur stage
                       gb_sets:empty(),              % Prev stage
@@ -269,8 +269,8 @@ collect_task(TaskId, CurStage, PrevStage, Frontier, Tasks, SI, DataMap, FHosts) 
 % This removes the completed task as a dependency from a set of
 % waiters, and returns the set of tasks that are now runnable since
 % they have no more dependencies, and the updated task set.
--spec wakeup_waiters(task_id(), [task_id()], gb_tree())
-                    -> {[task_id()], gb_tree()}.
+-spec wakeup_waiters(task_id(), [task_id()], disco_gbtree())
+                    -> {[task_id()], disco_gbtree()}.
 wakeup_waiters(TaskId, Waiters, Tasks) ->
     lists:foldl(
       fun(WId, {Runnable, Tsks}) ->
