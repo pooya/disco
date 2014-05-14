@@ -451,22 +451,49 @@ task_complete(TaskId, Host, Outputs, S) ->
     #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1 =
         wakeup_waiters(TaskId, Host, Outputs, S),
     #task_info{spec = #task_spec{stage = Stage}} = jc_utils:task_info(TaskId, Tasks),
+    {NewGroups, ModifiedGroups} = get_grouping_lists(S1, Stage, TaskId, Outputs),
 
+    % It is important that we call get_grouping_lists before setting the task as done.
     S2 = S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
-    #state{stage_info = SI1} = S3 = maybe_submit_tasks(S2, Stage, TaskId, Outputs),
+    #state{stage_info = SI1} = S3 =
+        maybe_submit_tasks(S2, Stage, NewGroups, ModifiedGroups),
     case jc_utils:last_stage_task(Stage, TaskId, SI) and can_finish(P, Stage, SI1) of
         true -> stage_done(Stage);
         false -> ok
     end,
     S3.
 
-maybe_submit_tasks(#state{pipeline = P} = S, Stage, TaskId, Outputs) ->
+maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) ->
     case pipeline_utils:next_stage(P, Stage) of
-        {Next, split} ->
-            {NTasks, STemp} = setup_stage_tasks([{TaskId, Outputs}], Next, split, S),
-            do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED);
-        _ ->
+        {Next, Grouping} ->
+            {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
+            STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
+            send_outputs_to_consumers(STemp1, ModifiedGroups);
+        done ->
             S
+    end.
+
+send_outputs_to_consumers(S, []) ->
+    S;
+
+send_outputs_to_consumers(S, [ModifiedGroup|Rest]) ->
+    lager:info("modified groups: ~p", [ModifiedGroup]),
+    send_outputs_to_consumers(S, Rest).
+
+get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Outputs) ->
+    case pipeline_utils:next_stage(P, Stage) of
+        done ->
+            % there is no tasks in the next stage to be started.
+            {[], []};
+        {_, Grouping} ->
+            case jc_utils:stage_info_opt(Stage, SI) of
+                none ->
+                    PrevStageOutputs = [{TaskId, Outputs}],
+                    {pipeline_utils:group_outputs(Grouping, PrevStageOutputs), []} ;
+                _ ->
+                    PrevStageOutputs = stage_outputs(Stage, S),
+                    pipeline_utils:get_grouping_lists(Grouping, PrevStageOutputs, TaskId, Outputs)
+            end
     end.
 
 wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
