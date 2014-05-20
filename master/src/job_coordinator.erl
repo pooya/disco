@@ -288,6 +288,12 @@ do_task_started(TaskId, W, #state{tasks = Tasks, data_map = DataMap} = S) ->
         false ->
             lager:info("no new inputs are available ~p", [TaskId])
     end,
+    case TaskInfo#task_info.end_input of
+        true ->
+            disco_worker:terminate_inputs(W);
+        false ->
+            ok
+    end,
     S#state{tasks = Tasks1}.
 
 -spec do_use_inputs([task_output()], state()) -> state().
@@ -601,31 +607,44 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                 false -> S
             end;
         {Next, Grouping} ->
-            send_termination_signal(Next, S),
+            S1 = send_termination_signal(Next, S),
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.
             case jc_utils:stage_info_opt(Next, SI) of
                 none ->
-                    PrevStageOutputs = stage_outputs(Stage, S),
+                    PrevStageOutputs = stage_outputs(Stage, S1),
                     case {Stage, Grouping} of
                         {?INPUT, _} ->
-                            start_next_stage(PrevStageOutputs, Next, Grouping, S);
+                            start_next_stage(PrevStageOutputs, Next, Grouping,
+                                S1);
                         {_, split} ->
-                            S;
+                            S1;
                         {_, _} ->
-                            start_next_stage(PrevStageOutputs, Next, Grouping, S)
+                            start_next_stage(PrevStageOutputs, Next, Grouping,
+                                S1)
                     end;
                 _ ->
-                    S
+                    S1
             end
     end.
 
-send_termination_signal(Stage, #state{stage_info = SI}) ->
-    lists:foldl(fun(Task, 0) ->
-                   lager:info("Task ~p", [Task]),
-                   0
-               end, 0, jc_utils:running_tasks(Stage, SI)).
-
+send_termination_signal(Stage, #state{stage_info = SI, tasks = Tasks} = S) ->
+    lists:foldl(fun(TaskId, S1) ->
+                    TaskInfo = jc_utils:task_info(TaskId, Tasks),
+                    case TaskInfo#task_info.worker of
+                        none ->
+                            lager:info("terminate: task ~p is not started yet.",
+                                [TaskId]),
+                            Tasks1 = jc_utils:update_task_info(TaskId,
+                                TaskInfo#task_info{end_input=true}, Tasks),
+                            S1#state{tasks = Tasks1};
+                        W ->
+                            lager:info("terminate: task ~p is terminates.",
+                                [TaskId]),
+                            disco_worker:terminate_inputs(W),
+                            S1
+                    end
+                end, S, jc_utils:running_tasks(Stage, SI)).
 
 start_next_stage(PrevStageOutputs, Stage, Grouping,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
