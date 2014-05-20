@@ -474,11 +474,27 @@ maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) -
             S
     end.
 
-send_outputs_to_consumers(S, []) ->
+send_outputs_to_consumers(#state{group_map = GroupMap} = S, ModifiedGroups) ->
+    TaskList = gb_trees:to_list(GroupMap),
+    lager:info("task list is: ~p", [TaskList]),
+    send_outputs_to_consumers(S, TaskList, ModifiedGroups).
+
+send_outputs_to_consumers(S, _, []) ->
     S;
 
-send_outputs_to_consumers(S, [ModifiedGroup|Rest]) ->
-    lager:info("modified groups: ~p", [ModifiedGroup]),
+send_outputs_to_consumers(S, TaskList, [{G, _}|Rest]) ->
+    TaskId = lists:foldl(fun({ThisId, ThisG}, Id) ->
+                case Id of
+                    none ->
+                        case ThisG of
+                            G -> ThisId;
+                            _ -> none
+                        end;
+                    _ -> Id
+                end
+    end, none, TaskList),
+    lager:info("consumer of modified groups: ~p is TaskId ~p", [G,
+            TaskId]),
     send_outputs_to_consumers(S, Rest).
 
 get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Outputs) ->
