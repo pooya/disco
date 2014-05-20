@@ -100,22 +100,21 @@ add_inputs(Worker, Inputs) ->
 
 -spec terminate_inputs(pid()) -> ok.
 terminate_inputs(Worker) ->
+    lager:info("in disco_worker finishing inputs."),
     gen_server:cast(Worker, {input, done}).
 
 -spec handle_cast(start | work, state()) -> gs_noreply();
                  ({input, [{input_id(), data_input()}]}, state()) -> gs_noreply().
-handle_cast({input, Inputs}, #state{runtime = Runtime, worker_send = WS} = S) ->
-    lager:info("sending inputs to worker"),
+handle_cast({input, Inputs}, #state{runtime = Runtime} = S) ->
+    error_logger:info_msg("sending inputs to worker"),
     {Reply, Runtime1} = worker_runtime:add_inputs(Inputs, Runtime),
-    lager:info("reply was: ~p ~p", [Reply, Runtime1]),
+    error_logger:info_msg("reply was: ~p ~p", [Reply, Runtime1]),
     case Reply of
-        none -> ok;
+        none ->
+            {noreply, S#state{runtime = Runtime1}};
         _ ->
-            Response = {"INPUT", [Reply, [[]]]},
-            WS ! {Response, 0},
-            ok
-    end,
-    {noreply, S#state{runtime = Runtime1}};
+            {noreply, update(S#state{runtime = Runtime1})}
+    end;
 
 handle_cast(start, #state{task = Task, master = Master} = State) ->
     {#task_spec{jobname = JobName}, #task_run{}} = Task,
@@ -238,7 +237,7 @@ update(#state{task = Task,
             S1 = S#state{buffer = Buffer, parser = PState},
             try case worker_runtime:handle(Request, RT) of
                     {ok, noreply, RState} ->
-                        update(S1#state{runtime = RState});
+                        {noreply, S};
                     {ok, Reply, RState} ->
                         WS ! {Reply, 0},
                         update(S1#state{runtime = RState});
