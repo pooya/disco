@@ -34,7 +34,10 @@ init(Inputs, Grouping, Group) ->
     #state{inputs     = gb_trees:from_orddict(SeqInputs),
            input_map  = gb_trees:from_orddict(SeqMap),
            %TODO only set input as done when we know it is done.
-           is_input_done = true,
+           is_input_done = case Grouping of
+               split -> true;
+               _     -> false
+           end,
            max_seq_id = length(Inputs)}.
 
 -spec init_replicas(seq_id(), data_input(), label_grouping(), group())

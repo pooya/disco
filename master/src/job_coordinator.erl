@@ -178,17 +178,8 @@ handle_cast({task_done, TaskId, Host, Results}, S) ->
 handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
     event_server:end_job(JobName),
     {stop, normal, S};
-handle_cast({task_started, TaskId, W}, #state{tasks = Tasks} = S) ->
-    TaskInfo = jc_utils:task_info(TaskId, Tasks),
-    Tasks1 = jc_utils:update_task_info(TaskId, TaskInfo#task_info{worker=W}, Tasks),
-    lager:info("task ~p started.", [TaskId]),
-    case TaskInfo#task_info.new_input of
-        true ->
-            lager:info("new inputs are available ~p", [TaskId]);
-        false ->
-            lager:info("no new inputs are available ~p", [TaskId])
-    end,
-    {noreply, S#state{tasks = Tasks1}};
+handle_cast({task_started, TaskId, W}, S) ->
+    {noreply, do_task_started(TaskId, W, S)};
 handle_cast({kill_job, Reason}, S) ->
     do_kill_job(Reason, S),
     {stop, normal, S}.
@@ -283,6 +274,21 @@ do_start(Inputs, S) ->
     Coord = self(),
     InputPid = spawn_link(fun() -> preprocess_inputs(Coord, Inputs) end),
     S#state{input_pid = InputPid}.
+
+do_task_started(TaskId, W, #state{tasks = Tasks, data_map = DataMap} = S) ->
+    TaskInfo = jc_utils:task_info(TaskId, Tasks),
+    Tasks1 = jc_utils:update_task_info(TaskId, TaskInfo#task_info{worker=W}, Tasks),
+    case TaskInfo#task_info.new_input of
+        true ->
+            #task_info{spec = TaskSpec} = TaskInfo,
+            #task_spec{input = Input} = TaskSpec,
+            Inputs = jc_utils:task_inputs(Input, DataMap),
+            disco_worker:add_inputs(W, Inputs),
+            lager:info("new inputs are available ~p", [TaskId]);
+        false ->
+            lager:info("no new inputs are available ~p", [TaskId])
+    end,
+    S#state{tasks = Tasks1}.
 
 -spec do_use_inputs([task_output()], state()) -> state().
 do_use_inputs(Inputs, #state{jobinfo = JobInfo} = S) ->

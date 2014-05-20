@@ -95,6 +95,7 @@ init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
 
 -spec add_inputs(pid(), [{input_id(), data_input()}]) -> ok.
 add_inputs(Worker, Inputs) ->
+    lager:info("in disco_worker sending inputs"),
     gen_server:cast(Worker, {input, Inputs}).
 
 -spec terminate_inputs(pid()) -> ok.
@@ -104,7 +105,9 @@ terminate_inputs(Worker) ->
 -spec handle_cast(start | work, state()) -> gs_noreply();
                  ({input, [{input_id(), data_input()}]}, state()) -> gs_noreply().
 handle_cast({input, Inputs}, #state{runtime = Runtime, worker_send = WS} = S) ->
+    lager:info("sending inputs to worker"),
     {Reply, Runtime1} = worker_runtime:add_inputs(Inputs, Runtime),
+    lager:info("reply was: ~p ~p", [Reply, Runtime1]),
     case Reply of
         none -> ok;
         _ ->
