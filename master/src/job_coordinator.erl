@@ -122,6 +122,7 @@ task_started(Coord, TaskId, Worker) ->
                 % input_id() -> data_info().
                 data_map   = gb_trees:empty() :: disco_gbtree(input_id(), data_info()),
                 % stage_name() -> stage_info().
+                group_map   = gb_trees:empty() :: disco_gbtree(task_id(), group()),
                 stage_info = gb_trees:empty() :: disco_gbtree(stage_name(), stage_info())}).
 -type state() :: #state{}.
 
@@ -619,6 +620,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                         tasks = Tasks,
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
+                        group_map   = OldGroupMap,
                         data_map    = OldDataMap} = S,
                  {TaskNum, Acc}) ->
     DataMap = lists:foldl(
@@ -650,9 +652,16 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                           schedule  = Schedule,
                           save_outputs = SaveOutputs,
                           save_info = SaveInfo},
-
+    GroupMap = case Grouping of
+        split -> OldGroupMap;
+        _ ->
+            lager:info("in make stage tasks: ~p", [G]),
+            false = gb_trees:is_defined(NextTaskId, OldGroupMap),
+            gb_trees:enter(NextTaskId, G, OldGroupMap)
+    end,
     S1 = S#state{next_taskid = NextTaskId + 1,
                  data_map    = DataMap,
+                 group_map   = GroupMap,
                  tasks = jc_utils:add_task_spec(NextTaskId, TaskSpec, Tasks)},
     make_stage_tasks(Stage, Grouping, Rest, S1,
                      {TaskNum + 1, [NextTaskId | Acc]}).
