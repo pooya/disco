@@ -482,7 +482,7 @@ send_outputs_to_consumers(#state{group_map = GroupMap} = S, ModifiedGroups) ->
 send_outputs_to_consumers(S, _, []) ->
     S;
 
-send_outputs_to_consumers(S, TaskList, [{G, _}|Rest]) ->
+send_outputs_to_consumers(S, TaskList, [({G, _} = GroupedInputs)|Rest]) ->
     TaskId = lists:foldl(fun({ThisId, ThisG}, Id) ->
                 case Id of
                     none ->
@@ -493,9 +493,21 @@ send_outputs_to_consumers(S, TaskList, [{G, _}|Rest]) ->
                     _ -> Id
                 end
     end, none, TaskList),
-    lager:info("consumer of modified groups: ~p is TaskId ~p", [G,
-            TaskId]),
-    send_outputs_to_consumers(S, Rest).
+    S1 = send_outputs_to_consumer(S, TaskId, GroupedInputs),
+    send_outputs_to_consumers(S1, Rest).
+
+send_outputs_to_consumer(#state{tasks = Tasks} = S, TaskId, {_, Inputs}) ->
+    TaskInfo = jc_utils:task_info(TaskId, Tasks),
+    W = TaskInfo#task_info.worker,
+    ok = case W of
+        none ->
+            %TODO queue up the inputs
+            lager:info("worker not started yet."),
+            ok;
+        _    -> disco_worker:add_inputs(W, Inputs)
+    end,
+    lager:info("consumer of modified groups: ~p is TaskId ~p, Worker ~p", [Inputs, TaskId, W]),
+    S.
 
 get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Outputs) ->
     case pipeline_utils:next_stage(P, Stage) of
