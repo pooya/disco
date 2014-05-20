@@ -601,6 +601,7 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                 false -> S
             end;
         {Next, Grouping} ->
+            send_termination_signal(Next, S),
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.
             case jc_utils:stage_info_opt(Next, SI) of
@@ -618,6 +619,13 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                     S
             end
     end.
+
+send_termination_signal(Stage, #state{stage_info = SI}) ->
+    lists:foldl(fun(Task, 0) ->
+                   lager:info("Task ~p", [Task]),
+                   0
+               end, 0, jc_utils:running_tasks(Stage, SI)).
+
 
 start_next_stage(PrevStageOutputs, Stage, Grouping,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
