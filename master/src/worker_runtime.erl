@@ -227,6 +227,7 @@ add_inputs(Inputs, #state{input_requested = Requested, inputs = InputState}=S) -
 
 produce_inputs(Function, InputState, S) ->
     Inputs = get_inputs(Function, InputState),
+    error_logger:info_msg("worker runtime state: ~p, inputs: ~p", [InputState, Inputs]),
     case {worker_inputs:is_input_done(InputState), length(Inputs)} of
         {false, 0} ->
             {ok, noreply, S#state{input_requested = true}};
