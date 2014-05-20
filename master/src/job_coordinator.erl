@@ -181,6 +181,13 @@ handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
 handle_cast({task_started, TaskId, W}, #state{tasks = Tasks} = S) ->
     TaskInfo = jc_utils:task_info(TaskId, Tasks),
     Tasks1 = jc_utils:update_task_info(TaskId, TaskInfo#task_info{worker=W}, Tasks),
+    lager:info("task ~p started.", [TaskId]),
+    case TaskInfo#task_info.new_input of
+        true ->
+            lager:info("new inputs are available ~p", [TaskId]);
+        false ->
+            lager:info("no new inputs are available ~p", [TaskId])
+    end,
     {noreply, S#state{tasks = Tasks1}};
 handle_cast({kill_job, Reason}, S) ->
     do_kill_job(Reason, S),
@@ -499,15 +506,16 @@ send_outputs_to_consumers(S, TaskList, [({G, _} = GroupedInputs)|Rest]) ->
 send_outputs_to_consumer(#state{tasks = Tasks} = S, TaskId, {_, Inputs}) ->
     TaskInfo = jc_utils:task_info(TaskId, Tasks),
     W = TaskInfo#task_info.worker,
-    ok = case W of
+    case W of
         none ->
-            %TODO queue up the inputs
-            lager:info("worker not started yet."),
-            ok;
-        _    -> disco_worker:add_inputs(W, Inputs)
-    end,
-    lager:info("consumer of modified groups: ~p is TaskId ~p, Worker ~p", [Inputs, TaskId, W]),
-    S.
+            lager:info("Worker not started yet: ~p", [TaskId]),
+            Tasks1 = jc_utils:update_task_info(TaskId,
+                TaskInfo#task_info{new_input=true}, Tasks),
+            S#state{tasks = Tasks1};
+        _    ->
+            disco_worker:add_inputs(W, Inputs),
+            S
+    end.
 
 get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Outputs) ->
     case pipeline_utils:next_stage(P, Stage) of
