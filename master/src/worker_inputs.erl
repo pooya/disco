@@ -92,7 +92,7 @@ fail_one(Key, Now, #state{input_map = Map} = S) ->
 
 -spec add_inputs(done | [{input_id(), data_input()}], state()) -> state().
 add_inputs(done, S) ->
-    S;
+    S#state{is_input_done = true};
 add_inputs(NewInputs, #state{inputs = Inputs} = S) ->
     InputList = gb_trees:to_list(Inputs),
     AggInputs = gb_trees:from_orddict(orddict:from_list(NewInputs ++ InputList)),
