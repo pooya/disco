@@ -162,7 +162,8 @@ refresh_tag_cache() ->
 init(_Args) ->
     _ = [disco_profile:new_histogram(Name)
         || Name <- [get_tags, do_get_tags_all, do_get_tags_filter,
-            do_get_tags_safe, do_get_tags_gc]],
+            do_get_tags_safe, do_get_tags_gc, ddfs_traverse_blobs,
+            ddfs_traverse_tags]],
     spawn_link(fun() -> monitor_diskspace() end),
     spawn_link(ddfs_gc, start_gc, [disco:get_setting("DDFS_DATA")]),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
