@@ -36,6 +36,7 @@ On each server the following are required:
  * `SSH daemon and client <http://www.openssh.com>`_
  * `Erlang/OTP R14A or newer <http://www.erlang.org>`_
  * `Python 2.6.6 or newer, or Python 3.2 or newer <http://www.python.org>`_
+ * `Python setuptools`_
 
 The same version of Erlang and Python should be installed on all
 servers.  The default version of Python on the clients from which

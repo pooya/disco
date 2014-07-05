@@ -6,14 +6,14 @@ Settings can be specified in a Python file and/or using environment variables.
 Settings specified in environment variables override those stored in a file.
 The default settings are intended to make it easy to get Disco running on a single node.
 :command:`make install` will create a more reasonable settings file for a cluster environment,
-and put it in ``/etc/disco/settings.py``
+and put it in ``/etc/disco/settings.yaml``
 
 Disco looks in the following places for a settings file:
 
         - The settings file specified using the command line utility
           ``--settings`` option.
         - ``~/.disco``
-        - ``/etc/disco/settings.py``
+        - ``/etc/disco/settings.yaml``
 
 Possible settings for Disco are as follows:
 
@@ -49,7 +49,7 @@ Possible settings for Disco are as follows:
                 If you run Disco out of the source directory,
                 you shouldn't need to change this.
                 If you use ``make install`` to install Disco,
-                it will be set properly for you in ``/etc/disco/settings.py``.
+                it will be set properly for you in ``/etc/disco/settings.yaml``.
 
         .. envvar:: DISCO_HTTPD
 
@@ -154,7 +154,8 @@ Settings to control the proxying behavior:
 
         .. envvar:: DISCO_PROXY_ENABLED
 
-                If set, enable proxying through the master.  This is a master-side setting (set in ``master:/etc/disco/settings.py``).
+                If set, enable proxying through the master.  This is a
+                master-side setting (set in ``master:/etc/disco/settings.yaml``).
                 Default is ``''``.
 
         .. envvar:: DISCO_PROXY
@@ -165,7 +166,8 @@ Settings to control the proxying behavior:
 
         .. envvar:: DISCO_PROXY_PORT
 
-                The port the master proxy should run on.  This is master-side setting (set in ``master:/etc/disco/settings.py``).
+                The port the master proxy should run on.  This is master-side
+                setting (set in ``master:/etc/disco/settings.yaml``).
                 Default is ``8999``.
 
 Settings to control the scheduler behavior:
@@ -399,7 +401,7 @@ def guess_home():
 
 def guess_settings():
     for settings_file in (os.path.expanduser('~/.disco'),
-                          '/etc/disco/settings.py'):
+                          '/etc/disco/settings.yaml'):
         if os.path.exists(settings_file):
             return settings_file
     return ''

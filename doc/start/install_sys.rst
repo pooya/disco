@@ -26,14 +26,14 @@ you can use the ``make install-node`` target instead.
 System Settings
 ===============
 
-``make install`` installs a configuration file to ``/etc/disco/settings.py``
+``make install`` installs a configuration file to ``/etc/disco/settings.yaml``
 that is tuned for clusters, not a single machine.
 
 By default,
 the settings assume that you have at least three nodes in your cluster,
 so DDFS can use three-way replication.
 If you have fewer nodes,
-you need to lower the number of replicas in ``/etc/disco/settings.py``::
+you need to lower the number of replicas in ``/etc/disco/settings.yaml``::
 
         DDFS_TAG_MIN_REPLICAS=1
         DDFS_TAG_REPLICAS=1

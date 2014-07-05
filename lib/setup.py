@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-from distutils.core import setup
+from setuptools import setup
 
 def ispackage(path):
     return os.path.isdir(path) and '__init__.py' in os.listdir(path)
@@ -20,4 +20,5 @@ setup(name='disco',
       description='An open-source mapreduce framework.',
       url='http://discoproject.org',
       author='Nokia Research Center',
+      install_requires=['pyyaml'],
       packages=list(packages(package_dir)))

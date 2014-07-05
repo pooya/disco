@@ -80,7 +80,7 @@ cp bin/disco bin/ddfs $RPM_BUILD_ROOT/%{prefix}/bin
 
 %files master
 %defattr(-,root,root)
-%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/disco/settings.py
+%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/disco/settings.yaml
 %dir %{prefix}/*
 %dir /etc/disco
 %{prefix}/lib/*

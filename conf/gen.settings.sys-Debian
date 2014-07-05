@@ -3,7 +3,7 @@
 
 cat << EOF
 
-DISCO_USER = "disco"
+DISCO_USER: "disco"
 
 EOF
 

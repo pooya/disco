@@ -57,7 +57,7 @@ head nodes, and the port used by the proxy is accessible to the Disco
 users.
 
 To use this mode, the Disco settings on the master (in the
-``/etc/disco/settings.py`` file) should set ``DISCO_PROXY_ENABLED`` to
+``/etc/disco/settings.yaml`` file) should set ``DISCO_PROXY_ENABLED`` to
 ``"True"``.  Disco then starts a HTTP proxy specified by
 ``DISCO_HTTPD`` (defaulting to `lighttpd`) on port
 ``DISCO_PROXY_PORT`` (defaulting to ``8999``) with a configuration
@@ -68,7 +68,7 @@ these settings to take effect.
 
 To use this proxy from the client side, i.e. in order to use the
 ``disco`` and ``ddfs`` commands, the users need to set ``DISCO_PROXY``
-in their environment, or in their local ``/etc/disco/settings.py``
+in their environment, or in their local ``/etc/disco/settings.yaml``
 file.  The value of this should be in the format
 ``http://<proxy-host>:<proxy-port>``, with ``<proxy-host>`` and
 ``<proxy-port>`` specifying how the proxy is accessible to the user.
@@ -185,7 +185,7 @@ termination of currently running jobs and loss of access to the
 since all metadata in DDFS is replicated, just like data.  The only
 centralized static information is the Disco settings file on the
 master (specified by the ``DISCO_SETTINGS_FILE``, which defaults to
-``/etc/disco/settings.py`` for installation), and the Disco cluster
+``/etc/disco/settings.yaml`` for installation), and the Disco cluster
 configuration, maintained in the file specified by the
 ``DISCO_MASTER_CONFIG`` setting.  You can examine all the settings for
 Disco using the ``disco -v`` command.

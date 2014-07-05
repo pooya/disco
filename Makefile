@@ -131,7 +131,7 @@ install-examples: $(TARGETLIB)/examples
 
 install-master: master \
 	$(TARGETDAT)/$(WWW) \
-	$(TARGETCFG)/settings.py
+	$(TARGETCFG)/settings.yaml
 
 uninstall-master:
 	- rm -Rf $(TARGETDAT)
@@ -182,7 +182,7 @@ $(TARGETBIN)/ddfs: bin/ddfs
 	$(INSTALL) -d $(@D)
 	$(INSTALL_PROGRAM) bin/ddfs $@
 
-$(TARGETCFG)/settings.py:
+$(TARGETCFG)/settings.yaml:
 	$(INSTALL) -d $(@D)
 	(cd conf && ./gen.settings.sys-`uname -s` > $@ && chmod 644 $@)
 
