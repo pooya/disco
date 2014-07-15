@@ -3,6 +3,7 @@
          diskspace/1,
          ensure_dir/1,
          fold_files/3,
+         foreach_file/2,
          format_timestamp/0,
          hashdir/5,
          is_valid_name/1,
@@ -201,6 +202,27 @@ diskspace(Path) ->
             end;
         _ ->
             {error, invalid_output}
+    end.
+
+-spec foreach_file(string(), fun((string(), non_neg_integer(), string()) -> ok)) -> ok.
+foreach_file(Dir, Fun) ->
+    Base = Dir ++ "/",
+    case prim_file:list_dir(Dir) of
+        {ok, L} ->
+            lists:foreach(
+              fun(F) ->
+                      Path =  Base ++ F,
+                      case prim_file:read_file_info(Path) of
+                          {ok, #file_info{type = directory}} ->
+                              foreach_file(Path, Fun);
+                          {ok, #file_info{size = Size}} ->
+                              Fun(F, Size, Dir)
+                      end
+              end, L);
+        {error, Error} ->
+            error_logger:info_msg("Could not read Dir ~p (~p)" ++
+                                  " ignoring all contents", [Dir, Error]),
+            ok
     end.
 
 -spec fold_files(string(), fun((string(), non_neg_integer(), string(), T) -> T), T) -> T.
