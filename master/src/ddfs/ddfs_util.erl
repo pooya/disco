@@ -203,7 +203,7 @@ diskspace(Path) ->
             {error, invalid_output}
     end.
 
--spec fold_files(string(), fun((string(), string(), T) -> T), T) -> T.
+-spec fold_files(string(), fun((string(), non_neg_integer(), string(), T) -> T), T) -> T.
 fold_files(Dir, Fun, Acc0) ->
     {ok, L} = prim_file:list_dir(Dir),
     lists:foldl(fun(F, Acc) ->
@@ -211,7 +211,7 @@ fold_files(Dir, Fun, Acc0) ->
         case prim_file:read_file_info(Path) of
             {ok, #file_info{type = directory}} ->
                 fold_files(Path, Fun, Acc);
-            _ ->
-                Fun(F, Dir, Acc)
+            {ok, #file_info{size = Size}} ->
+                Fun(F, Size, Dir, Acc)
         end
     end, Acc0, L).
