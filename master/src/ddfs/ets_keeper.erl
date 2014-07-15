@@ -1,4 +1,4 @@
--module(ddfs_gc_ets_keeper).
+-module(ets_keeper).
 
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
@@ -48,7 +48,7 @@ do_give_tab2pid(TabName, Pid, Tree) ->
 
 -spec create_new_table(atom(), pid(), state()) -> state().
 create_new_table(TabName, Pid, Tree) ->
-    TabId = ets:new(TabName, [private]),
+    TabId = ets:new(TabName, [named_table, set, private]),
     ets:setopts(TabId, {heir, self(), {}}),
     gb_trees:insert(TabName, {Pid, TabId, now()}, Tree).
 
