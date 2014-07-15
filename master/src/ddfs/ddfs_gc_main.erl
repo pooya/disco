@@ -291,14 +291,23 @@ init({Root, DeletedAges}) ->
     %               State :: 'pending' | 'missing' | check_blob_result()}
     % gc_tag_map:  {Key :: tagname(),
     %               Id  :: erlang:timestamp()}
-    ets_keeper:give_ets2me(gc_blob_map),
-    ets_keeper:give_ets2me(gc_tag_map),
+
+    process_flag(trap_exit, true),
+
+    BlobMapCreated = ets_keeper:give_tab2me(gc_blob_map),
+    TagMapCreated = ets_keeper:give_tab2me(gc_tag_map),
+    State1 = case {BlobMapCreated, TagMapCreated} of
+                    {true, true}   ->
+                        gen_server:cast(self(), start),
+                        State;
+                    {false, false} ->
+                        start_gc_phase(State#state{phase = build_map, num_pending_reqs = 0})
+                 end,
+
     %_ = ets:new(gc_blob_map, [named_table, set, private]),
     %_ = ets:new(gc_tag_map, [named_table, set, private]),
 
-    process_flag(trap_exit, true),
-    gen_server:cast(self(), start),
-    {ok, State}.
+    {ok, State1}.
 
 -type is_orphan_msg() :: {is_orphan, object_type(), object_name(),
                           node(), volume_name()}.
@@ -873,7 +882,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
                           ets:update_element(gc_blobs, BlobName, {7, [Node | Delete]})
                   end
           end, true, gc_blob_map),
-    ets:delete(gc_blob_map),
+    ets_keeper:delete_tab(gc_blob_map),
 
     {UnderusedNodes, OverusedNodes} = find_unstable_nodes(NodeStats),
     Utilization = [{N, ddfs_rebalance:utility(Node)} || {N, _} = Node <- NodeStats,
