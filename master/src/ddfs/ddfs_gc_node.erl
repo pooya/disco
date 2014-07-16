@@ -30,8 +30,8 @@ gc_node_init(Master, Now, Phase) ->
     %        Vol    :: volume_name(),
     %        Size   :: non_neg_integer(),
     %        in_use :: 'false' | 'true'}
-    _ = ets:new(tag, [named_table, set, private]),
-    _ = ets:new(blob, [named_table, set, private]),
+    _ = ets:new(tag, [named_table, set, public, {write_concurrency,true}]),
+    _ = ets:new(blob, [named_table, set, public, {write_concurrency,true}]),
     traverse(Now, Root, VolNames, blob),
     traverse(Now, Root, VolNames, tag),
     error_logger:info_msg("GC: found ~p blob, ~p tag candidates on ~p",
@@ -61,7 +61,7 @@ gc_node(Master, _Now, Root, Phase)
 -spec traverse(erlang:timestamp(), path(), [volume_name()], object_type()) -> 'ok'.
 traverse(Now, Root, VolNames, Type) ->
     Mode = case Type of tag -> "tag"; blob -> "blob" end,
-    lists:foreach(
+    plists:foreach(
       fun(VolName) ->
               DDFSDir = filename:join([Root, VolName, Mode]),
               Handler = fun(Obj, Size, Dir) ->
