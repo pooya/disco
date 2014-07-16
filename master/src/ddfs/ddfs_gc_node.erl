@@ -184,7 +184,7 @@ delete_if_expired(Orphan, Path, Diff, Expires, true)
     % Chmod u+w deleted files, so they can removed safely with rm without -f
     _ = prim_file:write_file_info(Path, #file_info{mode = 8#00600}),
     _ = prim_file:rename(Path, Deleted),
-    % Sleep here two prevent master being DDOS'ed by info_reports above
+    % Sleep here to prevent master being DDOS'ed by info_reports above
     timer:sleep(100),
     true;
 delete_if_expired(true, Path, _Diff, _Expired, false) ->
