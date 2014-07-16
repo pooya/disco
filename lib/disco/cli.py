@@ -214,6 +214,7 @@ class Master(clx.server.Server):
                  '-connect_all', 'false',
                  '-sname', self.name,
                  '-pa', epath('ebin'),
+                 '-pa', epath('plists'),
                  '-pa', edep('mochiweb'),
                  '-pa', edep('lager'),
                  '-pa', edep('lager_syslog'),
