@@ -5,7 +5,7 @@
 -include("disco.hrl").
 
 -define(RESTART_DELAY, 15000).
--define(SLAVE_ARGS, "+K true -connect_all false").
+-define(SLAVE_ARGS, "+K true -connect_all false +scl false").
 -define(RPC_CALL_TIMEOUT, 30000).
 -define(RPC_RETRY_TIMEOUT, 120000).
 
