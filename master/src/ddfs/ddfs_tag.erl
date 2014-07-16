@@ -546,6 +546,7 @@ get_tagdata(TagName, DdfsData) ->
                                       ?NODE_TIMEOUT),
             case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
                 _ when length(Failed) + RBSize >= TagMinK ->
+                    lager:info("Tag ~p failed on nodes ~p", [TagName, Failed]),
                     {error, too_many_failed_nodes};
                 [] ->
                     {missing, notfound};
