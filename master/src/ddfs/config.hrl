@@ -47,7 +47,7 @@
 % How often the master's cache of all known tag names is refreshed.
 % This refresh is only needed to purge deleted tags eventually from
 % the tag cache. It doesn't harm to have a long interval.
--define(TAG_CACHE_INTERVAL, (10 * ?MINUTE)).
+-define(TAG_CACHE_INTERVAL, (60 * ?MINUTE)).
 
 % How soon a tag object initialized in memory expires if it's content
 % cannot be fetched from the cluster.
