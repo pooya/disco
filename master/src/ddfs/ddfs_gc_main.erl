@@ -252,6 +252,9 @@ gc_status(Master, From) ->
 
 -spec is_orphan(pid(), object_type(), object_name(), volume_name())
                -> {ok, boolean() | unknown}.
+
+is_orphan(_Master, tag, ObjName, _Vol) ->
+    check_is_tag_orphan(ObjName);
 is_orphan(Master, Type, ObjName, Vol) ->
     gen_server:call(Master, {is_orphan, Type, ObjName, node(), Vol}).
 
@@ -1014,21 +1017,7 @@ rebalance(Overused, BL, NodeStats) ->
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
 check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
-    {TagName, Tstamp} = ddfs_util:unpack_objname(Tag),
-    case mnesia:dirty_read(gc_tag_map, TagName) of
-        [] ->
-            % This tag was not present in our snapshot, but could have
-            % been newly created.  Mark it as unknown, and the node
-            % will not delete it if it is recent.
-            {ok, unknown};
-        [{_, _, GcTstamp}] when Tstamp < GcTstamp ->
-            % This is an older incarnation of the tag, hence
-            % definitely an orphan.
-            {ok, true};
-        [{_, _, _GcTstamp}] ->
-            % This is a current or newer incarnation.
-            {ok, false}
-    end;
+    check_is_tag_orphan(Tag);
 check_is_orphan(#state{blobk = BlobK, blacklist = BlackList,
                 most_overused_node = MostOverused}, blob, BlobName, Node, Vol) ->
     MaxReps = BlobK + ?NUM_EXTRA_REPLICAS,
@@ -1110,6 +1099,23 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList,
                             {ok, false}
                     end
             end
+    end.
+
+check_is_tag_orphan(Tag) ->
+    {TagName, Tstamp} = ddfs_util:unpack_objname(Tag),
+    case mnesia:dirty_read(gc_tag_map, TagName) of
+        [] ->
+            % This tag was not present in our snapshot, but could have
+            % been newly created.  Mark it as unknown, and the node
+            % will not delete it if it is recent.
+            {ok, unknown};
+        [{_, _, GcTstamp}] when Tstamp < GcTstamp ->
+            % This is an older incarnation of the tag, hence
+            % definitely an orphan.
+            {ok, true};
+        [{_, _, _GcTstamp}] ->
+            % This is a current or newer incarnation.
+            {ok, false}
     end.
 
 -spec init_gc_stats() -> gc_run_stats().
