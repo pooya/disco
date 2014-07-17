@@ -40,6 +40,7 @@ start(_Type, _Args) ->
     ok = application:start(lager),
     ok = disco_profile:start_apps(),
     ok = inets:start(),
+    ok = application:start(mnesia),
     init_settings(),
     write_pid(disco:get_setting("DISCO_MASTER_PID")),
     Port = disco:get_setting("DISCO_PORT"),

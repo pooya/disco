@@ -232,6 +232,10 @@
 
 -type object_location() :: {node(), volume_name()}.
 
+-record(gc_tag_map,
+     {tagname   :: tagname(),
+     timestamp  :: erlang:timestamp()}).
+
 %% ===================================================================
 %% external API
 
@@ -292,7 +296,9 @@ init({Root, DeletedAges}) ->
     % gc_tag_map:  {Key :: tagname(),
     %               Id  :: erlang:timestamp()}
     _ = ets:new(gc_blob_map, [named_table, set, private]),
-    _ = ets:new(gc_tag_map, [named_table, set, private]),
+    _ = mnesia:create_table(gc_tag_map,
+        [{ram_copies, [node()]},
+         {attributes, record_info(fields, gc_tag_map)}]),
 
     process_flag(trap_exit, true),
     gen_server:cast(self(), start),
@@ -616,7 +622,10 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 %% gen_server callback stubs
 
 -spec terminate(term(), state()) -> ok.
-terminate(_Reason, _S) -> ok.
+terminate(_Reason, _S) ->
+    mnesia:change_table_access_mode(gc_tag_map, read_write),
+    mnesia:delete_table(gc_tag_map),
+    ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
@@ -749,7 +758,8 @@ record_tag(_S, Tag, TagId, _TagReplicas) ->
     % Assert that TagId embeds the specified Tag name.
     {Tag, Tstamp} = ddfs_util:unpack_objname(TagId),
     % This should be the first and only entry for this tag.
-    true = ets:insert_new(gc_tag_map, {Tag, Tstamp}),
+    mnesia:dirty_write(gc_tag_map,
+                       #gc_tag_map{tagname = Tag, timestamp = Tstamp}),
     ok.
 
 -spec check_blobset(state(), [url()], non_neg_integer())
@@ -832,6 +842,8 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     %            Size :: 'undefined' | non_neg_integer(),
     %            Rebalance :: rebalance(),
     %            Update_missing :: [node()]}
+
+    mnesia:change_table_access_mode(gc_tag_map, read_only),
     _ = ets:new(gc_blobs, [named_table, set, private]),
 
     _ = ets:foldl(
@@ -1003,17 +1015,17 @@ rebalance(Overused, BL, NodeStats) ->
                      -> {ok, boolean() | unknown}.
 check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
     {TagName, Tstamp} = ddfs_util:unpack_objname(Tag),
-    case ets:lookup(gc_tag_map, TagName) of
+    case mnesia:dirty_read(gc_tag_map, TagName) of
         [] ->
             % This tag was not present in our snapshot, but could have
             % been newly created.  Mark it as unknown, and the node
             % will not delete it if it is recent.
             {ok, unknown};
-        [{_, GcTstamp}] when Tstamp < GcTstamp ->
+        [{_, _, GcTstamp}] when Tstamp < GcTstamp ->
             % This is an older incarnation of the tag, hence
             % definitely an orphan.
             {ok, true};
-        [{_, _GcTstamp}] ->
+        [{_, _, _GcTstamp}] ->
             % This is a current or newer incarnation.
             {ok, false}
     end;
