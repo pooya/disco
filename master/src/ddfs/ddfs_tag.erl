@@ -445,9 +445,8 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
     NewUrls = gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId),
     {ok, NewTagContent} =
         ddfs_tag_util:update_tagcontent(TagName, urls, NewUrls, Tag, null),
-    NewTagData = ddfs_tag_util:encode_tagcontent(NewTagContent),
     TagId = NewTagContent#tagcontent.id,
-    case put_distribute({TagId, NewTagData}) of
+    case put_distribute({TagId, NewTagContent}) of
         {ok, DestNodes, DestUrls} ->
             S#state{data = {ok, NewTagContent},
                     replicas = DestNodes,
@@ -639,9 +638,8 @@ do_put({_, Token},
        #state{tag = TagName, data = TagData} = S) ->
     case ddfs_tag_util:update_tagcontent(TagName, Field, Value, TagData, Token) of
         {ok, TagContent} ->
-            NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
             TagID = TagContent#tagcontent.id,
-            case put_distribute({TagID, NewTagData}) of
+            case put_distribute({TagID, TagContent}) of
                 {ok, DestNodes, DestUrls} ->
                     case TagData of
                         {missing, _} ->
@@ -664,9 +662,8 @@ do_put({_, Token},
 
 do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
     TagContent = ddfs_tag_util:delete_tagattrib(TagName, Field, D),
-    NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
     TagId = TagContent#tagcontent.id,
-    case put_distribute({TagId, NewTagData}) of
+    case put_distribute({TagId, TagContent}) of
         {ok, DestNodes, DestUrls} ->
             _ = send_replies(ReplyTo, ok),
             S#state{data = {ok, TagContent},
@@ -686,7 +683,7 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
--spec put_distribute({tagid(), binary()})
+-spec put_distribute({tagid(), tagcontent()})
                     -> {error, commit_failed | replication_failed}
                            | {ok, [node()], [url(), ...]}.
 put_distribute({TagID, _} = Msg) ->
@@ -697,7 +694,7 @@ put_distribute({TagID, _} = Msg) ->
             E
     end.
 
--spec put_distribute({tagid(), binary()}, non_neg_integer(),
+-spec put_distribute({tagid(), tagcontent()}, non_neg_integer(),
                      [{node(), volume_name()}], [node()])
                     -> {error, replication_failed}
                            | {ok, [{node(), volume_name()}]}.

@@ -119,7 +119,7 @@ init(Config) ->
 -type get_tag_ts_msg() :: {get_tag_timestamp, tagname()}.
 -type get_tag_data_msg() :: {get_tag_data, tagid(),
                              {erlang:timestamp(), volume_name()}}.
--type put_tag_data_msg() :: {put_tag_data, {tagid(), binary()}}.
+-type put_tag_data_msg() :: {put_tag_data, {tagid(), tagcontent()}}.
 -type put_tag_commit_msg() :: {put_tag_commit, tagname(),
                                [{node(), volume_name()}]}.
 
@@ -272,13 +272,14 @@ do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
     end.
 
 -type put_tag_data_result() :: {ok, volume_name()} | {error, _}.
--spec do_put_tag_data(tagname(), binary(), state()) -> put_tag_data_result().
+-spec do_put_tag_data(tagname(), tagcontent(), state()) -> put_tag_data_result().
 do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
     {error, no_volumes};
-do_put_tag_data(Tag, Data, #state{nodename = NodeName,
+do_put_tag_data(Tag, Content, #state{nodename = NodeName,
                                   vols = Vols,
                                   root = Root}) ->
     {_Space, VolName} = choose_vol(Vols),
+    Data = ddfs_tag_util:encode_tagcontent(Content),
     {ok, Local, _} = ddfs_util:hashdir(Tag,
                                        NodeName,
                                        "tag",
