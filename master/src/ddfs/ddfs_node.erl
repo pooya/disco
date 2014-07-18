@@ -71,7 +71,7 @@ put_blob(BlobName) ->
 rescan_tags() ->
     gen_server:cast(?MODULE, rescan_tags).
 
--spec get_tag_data(node(), tagid(), taginfo()) -> {ok, binary()} | {error, term()}.
+-spec get_tag_data(node(), tagid(), taginfo()) -> {ok, tagcontent()} | {error, term()}.
 get_tag_data(SrcNode, TagId, TagNfo) ->
     Call = {get_tag_data, TagId, TagNfo},
     gen_server:call({?MODULE, SrcNode}, Call, ?NODE_TIMEOUT).
@@ -92,6 +92,14 @@ init(Config) ->
     if
         PutEnabled ->
             {ok, _PutPid} = ddfs_put:start(PutPort),
+            mnesia:create_schema([node()]),
+            ok = application:start(mnesia),
+            {atomic, ok} =
+                mnesia:create_table(tagcontent, [
+                        {disc_copies, [node()]},
+                        {local_content, true},
+                        {attributes, record_info(fields, tagcontent)}
+                    ]),
             ok;
         true ->
             ok
@@ -120,8 +128,7 @@ init(Config) ->
 -type get_tag_data_msg() :: {get_tag_data, tagid(),
                              {erlang:timestamp(), volume_name()}}.
 -type put_tag_data_msg() :: {put_tag_data, tagcontent()}.
--type put_tag_commit_msg() :: {put_tag_commit, tagname(),
-                               [{node(), volume_name()}]}.
+-type put_tag_commit_msg() :: {put_tag_commit, tagname()}.
 
 -spec handle_call(get_tags, from(), state()) ->
                          gs_reply([tagname()]);
@@ -159,15 +166,15 @@ handle_call({put_blob, BlobName}, From, S) ->
 handle_call({get_tag_timestamp, TagName}, _From, S) ->
     {reply, do_get_tag_timestamp(TagName, S), S};
 
-handle_call({get_tag_data, TagId, {_Time, VolName}}, From, State) ->
-    spawn(fun() -> do_get_tag_data(TagId, VolName, From, State) end),
+handle_call({get_tag_data, TagId, {_Time, _VolName}}, From, State) ->
+    spawn(fun() -> do_get_tag_data(TagId, From, State) end),
     {noreply, State};
 
 handle_call({put_tag_data, TagContent}, _From, S) ->
     {reply, do_put_tag_data(TagContent, S), S};
 
-handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
-    {Reply, S1} = do_put_tag_commit(Tag, TagVol, S),
+handle_call({put_tag_commit, Tag}, _, S) ->
+    {Reply, S1} = do_put_tag_commit(Tag, S),
     {reply, Reply, S1}.
 
 -type casts() :: rescan_tags
@@ -258,71 +265,31 @@ do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
             {ok, TagNfo}
     end.
 
--spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, state()) -> ok.
-do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
-    {ok, TagDir} = ddfs_util:hashdir(TagId, "tag", Root, VolName),
-    TagPath = TagDir ++ "/" ++ binary_to_list(TagId),
-    case prim_file:read_file(TagPath) of
-        {ok, Binary} ->
-            gen_server:reply(From, {ok, Binary});
-        {error, Reason} ->
-            error_logger:warning_msg("Read failed on ~p at ~p: ~p",
-                                     [node(), TagPath, Reason]),
-            gen_server:reply(From, {error, read_failed})
+-spec do_get_tag_data(tagid(), {pid(), _}, state()) -> ok.
+do_get_tag_data(TagId, From, _S) ->
+    case mnesia:dirty_read(tagcontent, TagId) of
+        [] ->
+            error_logger:warning_msg("Tag ~p not found on ~p.",
+                                     [TagId, node()]),
+            gen_server:reply(From, {error, read_failed});
+        [TagContent] ->
+            gen_server:reply(From, {ok, TagContent})
     end.
 
+%TODO we can have a separate table just for partial tags.
 -type put_tag_data_result() :: {ok, volume_name()} | {error, _}.
 -spec do_put_tag_data(tagcontent(), state()) -> put_tag_data_result().
-do_put_tag_data(_Content, #state{vols = []}) ->
-    {error, no_volumes};
-do_put_tag_data(#tagcontent{id = Tag} = Content, #state{nodename = NodeName,
-                                  vols = Vols,
-                                  root = Root}) ->
-    {_Space, VolName} = choose_vol(Vols),
-    Data = ddfs_tag_util:encode_tagcontent(Content),
-    {ok, Local, _} = ddfs_util:hashdir(Tag,
-                                       NodeName,
-                                       "tag",
-                                       Root,
-                                       VolName),
-    case ddfs_util:ensure_dir(Local) of
-        ok ->
-            Partial = lists:flatten(["!partial.", binary_to_list(Tag)]),
-            Filename = Local ++ "/" ++ Partial,
-            case prim_file:write_file(Filename, Data) of
-                ok ->
-                    {ok, VolName};
-                {error, _} = E ->
-                    E
-            end;
-        E ->
-            E
-    end.
+do_put_tag_data(#tagcontent{id = Tag} = Content, _S) ->
+    FinalTag = <<Tag/binary, <<"+partial">>/binary>>,
+    mnesia:dirty_write(Content#tagcontent{id = FinalTag}).
 
--spec do_put_tag_commit(tagname(), [{node(), volume_name()}], state())
-                       -> {{ok, url()} | {error, _}, state()}.
-do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
-                                      root = Root,
-                                      tags = Tags} = S) ->
-    {_, VolName} = lists:keyfind(node(), 1, TagVol),
-    {ok, Local, Url} = ddfs_util:hashdir(Tag,
-                                         NodeName,
-                                         "tag",
-                                         Root,
-                                         VolName),
+-spec do_put_tag_commit(tagname(), state()) -> {ok, state()}.
+do_put_tag_commit(Tag, #state{tags = Tags} = S) ->
+    FinalTag = <<Tag/binary, <<"+partial">>/binary>>,
+    [Content] = mnesia:dirty_read({tagcontent, FinalTag}),
+    mnesia:dirty_write(Content#tagcontent{id = Tag}),
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
-
-    TagL = binary_to_list(Tag),
-    Src = Local ++ "/" ++ lists:flatten(["!partial.", TagL]),
-    Dst = Local ++ "/" ++ TagL,
-    case ddfs_util:safe_rename(Src, Dst) of
-        ok ->
-            {{ok, Url},
-             S#state{tags = gb_trees:enter(TagName, {Time, VolName}, Tags)}};
-        {error, _} = E ->
-            {E, S}
-    end.
-
+    {ok, S#state{tags = gb_trees:enter(TagName, {Time, ok}, Tags)}}.
 
 -spec try_makedir(path()) -> ok | error.
 try_makedir(Dir) ->

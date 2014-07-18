@@ -126,13 +126,8 @@ handle_cast(M, #state{data = none, tag = Tag, timeout = TO,
                 {{missing, deleted}, false, false, ?TAG_EXPIRES_ONERROR};
             false ->
                 case get_tagdata(Tag, DdfsData) of
-                    {ok, TagData, Repl, Locs} ->
-                        case ddfs_tag_util:decode_tagcontent(TagData) of
-                            {ok, Content} ->
-                                {{ok, Content}, Repl, Locs, TO};
-                            {error, _} = E ->
-                                {E, false, false, ?TAG_EXPIRES_ONERROR}
-                        end;
+                    {ok, TagContent, Repl, Locs} ->
+                        {{ok, TagContent}, Repl, Locs, TO};
                     {missing, notfound} = E ->
                         {E, false, false, ?TAG_EXPIRES_ONERROR};
                     {error, _} = E ->
@@ -571,9 +566,9 @@ read_tagdata(TagID, Locations, Replicas, Failed, _Error) ->
               catch K:V -> {error, {K,V}}
               end,
     case GetData of
-        {ok, Data} ->
+        {ok, TagContent} ->
             {_, DestNodes} = lists:unzip(Replicas),
-            {ok, Data, DestNodes, Locations};
+            {ok, TagContent, DestNodes, Locations};
         E ->
             read_tagdata(TagID, Locations, Replicas, [Chosen|Failed], E)
     end.
@@ -685,8 +680,8 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
                            | {ok, [node()], [url(), ...]}.
 put_distribute(#tagcontent{id = TagID} = TagContent) ->
     case put_distribute(TagContent, get(tagk), [], []) of
-        {ok, TagVol} ->
-            put_commit(TagID, TagVol);
+        {ok, Nodes} ->
+            put_commit(TagID, Nodes);
         {error, _} = E ->
             E
     end.
@@ -713,18 +708,16 @@ put_distribute(TagContent, K, OkNodes, Exclude) ->
                                                       {put_tag_data, TagContent},
                                                       ?NODE_TIMEOUT),
             put_distribute(TagContent, K,
-                           OkNodes ++ [{Node, VolName}
-                                       || {Node, {ok, VolName}} <- Replies],
+                           OkNodes ++ [Node || {Node, ok} <- Replies],
                            Exclude ++ [Node || {Node, _} <- Replies] ++ Failed)
     end.
 
--spec put_commit(tagid(), [{node(), volume_name()}])
+-spec put_commit(tagid(), [node()])
                 -> {error, commit_failed} | {ok, [node()], [url(), ...]}.
-put_commit(TagID, TagVol) ->
-    {Nodes, _} = lists:unzip(TagVol),
+put_commit(TagID, Nodes) ->
     {NodeUrls, _} = gen_server:multi_call(Nodes,
                                           ddfs_node,
-                                          {put_tag_commit, TagID, TagVol},
+                                          {put_tag_commit, TagID},
                                           ?NODE_TIMEOUT),
     case [Url || {_Node, {ok, Url}} <- NodeUrls] of
         [] ->
