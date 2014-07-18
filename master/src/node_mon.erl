@@ -99,7 +99,7 @@ slave_env() ->
                    [io_lib:format(" -pa ~s/ebin/~s", [Home, Dir])
                     || Dir <- [""]],
                    [io_lib:format(" -pa ~s/deps/~s/ebin", [Home, Dir])
-                    || Dir <- ["mochiweb", "lager", "plists"] ++ disco_profile:get_app_names()],
+                    || Dir <- ["mochiweb", "lager", "plists", "ranch", "cowlib", "cowboy"] ++ disco_profile:get_app_names()],
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 

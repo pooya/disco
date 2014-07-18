@@ -416,7 +416,8 @@ retry_task(Host, _Error,
            #state{tasks = Tasks,
                   jehandler = JEHandler,
                   hosts = Cluster} = S) ->
-    {ok, MaxFail} = application:get_env(max_failure_rate),
+
+    {ok, MaxFail} = application:get_env(disco, max_failure_rate),
     FC = FailedCnt + 1,
     case FC > MaxFail of
         true ->

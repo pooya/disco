@@ -1,4 +1,5 @@
 -module(disco_web).
+-export([handle/2, init/3, terminate/3]).
 -export([op/3]).
 
 -include("common_types.hrl").
@@ -6,21 +7,37 @@
 -include("pipeline.hrl").
 -include("config.hrl").
 
--spec op(atom(), string(), module()) -> _.
-op('GET', "/disco/version", Req) ->
-    {ok, Vsn} = application:get_key(vsn),
+init(_Type, Req, []) ->
+    {ok, Req, undefined}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
+handle(Req, State) ->
+    {Method, Req1} = cowboy_req:method(Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    Req4 = case op(Method, binary_to_list(Path), Req2) of
+       {ok, Req3} -> Req3;
+       Req3 -> Req3
+    end,
+    {ok, Req4, State}.
+
+-spec op(binary(), string(), term()) -> _.
+op(<<"GET">>, "/disco/version", Req) ->
+    {ok, Vsn} = application:get_key(disco, vsn),
     reply({ok, list_to_binary(Vsn)}, Req);
 
-op('POST', "/disco/job/" ++ _, Req) ->
-    BodySize = list_to_integer(Req:get_header_value("content-length")),
-    if BodySize > ?MAX_JOB_PACKET ->
-            Req:respond({413, [], ["Job packet too large"]});
+op(<<"POST">>, "/disco/job/" ++ _, Req) ->
+    {ok, BodySize, Req1} = cowboy_req:parse_header(<<"content-length">>, Req),
+    if BodySize =:= undefined ->
+           cowboy_req:reply(413, [], <<"No job pack">>, Req1);
+       BodySize > ?MAX_JOB_PACKET ->
+           cowboy_req:reply(413, [], <<"Job pack too large">>, Req1);
     true ->
-        case application:get_env(accept_new_jobs) of
+        case application:get_env(disco, accept_new_jobs) of
             {ok, 0} ->
-                Req:respond({403, [], ["No new jobs should be submitted to this cluster."]});
+                cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>, Req1);
             _ ->
-                Body = Req:recv_body(?MAX_JOB_PACKET),
+                {ok, Body, Req2} = cowboy_req:body(Req1),
                 Reply =
                     try
                         {ok, JobName} = job_coordinator:new(Body),
@@ -34,40 +51,49 @@ op('POST', "/disco/job/" ++ _, Req) ->
                             lager:warning("Job failed to start: ~p:~p", [K, E]),
                             [<<"error">>, list_to_binary(ErrorString)]
                     end,
-                reply({ok, Reply}, Req)
+                reply({ok, Reply}, Req2)
         end
     end;
 
-op('POST', "/disco/ctrl/" ++ Op, Req) ->
-    Json = mochijson2:decode(Req:recv_body(?MAX_JSON_POST)),
-    reply(postop(Op, Json), Req);
+op(<<"POST">>, "/disco/ctrl/" ++ Op, Req) ->
+    {ok, Body, Req1} = cowboy_req:body(Req),
+    Json = mochijson2:decode(Body),
+    reply(postop(Op, Json), Req1);
 
-op('GET', "/disco/ctrl/" ++ Op, Req) ->
-    Query = Req:parse_qs(),
-    Name =
-        case lists:keyfind("name", 1, Query) of
-            {_, N} -> N;
-            _      -> false
-        end,
-    reply(getop(Op, {Query, Name}), Req);
+op(<<"GET">>, "/disco/ctrl/" ++ Op, Req) ->
+    {Qs, Req1} = cowboy_req:qs_vals(Req),
+    Name = case lists:keyfind(<<"name">>, 1, Qs) of
+               false -> false;
+               {_, N} -> N
+           end,
+    reply(getop(Op, {Qs, Name}), Req1);
 
-op('GET', Path, Req) ->
+op(<<"GET">>, Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
-    Req:not_found().
+    cowboy_req:reply(404, Req).
 
 reply({ok, Data}, Req) ->
-    Req:ok({"application/json", [], mochijson2:encode(Data)});
+    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>} ],
+        mochijson2:encode(Data), Req);
+
 reply({raw, Data}, Req) ->
-    Req:ok({"text/plain", [], Data});
+    cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], Data, Req);
+
 reply({file, File, Docroot}, Req) ->
-    Req:serve_file(File, Docroot);
+    lager:info("Replying with file ~p Docroot ~p", [File, Docroot]),
+    F = fun(Socket, Transport) ->
+            Transport:sendfile(Socket, filename:join([Docroot, File]))
+        end,
+    Req1 = cowboy_req:set_resp_body_fun(F, Req),
+    cowboy_req:reply(200, Req1);
 reply(not_found, Req) ->
-    Req:not_found();
+    cowboy_req:reply(404, Req);
+
 reply({error, E}, Req) ->
-    Req:respond({400, [], mochijson2:encode(E)}).
+    cowboy_req:reply(400, [], list_to_binary(mochijson2:encode(E)), Req).
 
 getop("load_config_table", _Query) ->
     disco_config:get_config_table();
@@ -80,7 +106,8 @@ getop("joblist", _Query) ->
           || {Name, Status, {MSec, Sec, _USec}}
                  <- lists:reverse(lists:keysort(3, Jobs))]};
 
-getop("jobinfo", {_Query, JobName}) ->
+getop("jobinfo", {_Query, JobNameBin}) ->
+    JobName = binary_to_list(JobNameBin),
     {ok, Active} = disco_server:get_active(JobName),
     HostInfo = lists:unzip([{H, S} || {H, _J, S} <- Active]),
     case event_server:get_jobinfo(JobName) of
@@ -95,15 +122,15 @@ getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
 
 getop("jobevents", {Query, Name}) ->
-    Num = case lists:keyfind("num", 1, Query) of
+    Num = case lists:keyfind(<<"num">>, 1, Query) of
               false  -> 10;
-              {_, N} -> list_to_integer(N)
+              {_, N} -> binary_to_integer(N)
           end,
-    Q = case lists:keyfind("filter", 1, Query) of
+    Q = case lists:keyfind(<<"filter">>, 1, Query) of
             false  -> "";
-            {_, F} -> string:to_lower(F)
+            {_, F} -> F
         end,
-    {ok, Ev} = event_server:get_job_msgs(Name, Q, Num),
+    {ok, Ev} = event_server:get_job_msgs(binary_to_list(Name), binary_to_list(Q), Num),
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
@@ -157,12 +184,11 @@ getop("get_settings", _Query) ->
                                  end, L))}};
 
 getop("get_stageresults", {Query, Name}) ->
-    Stage = case lists:keyfind("stage", 1, Query) of
+    StageName = case lists:keyfind(<<"stage">>, 1, Query) of
         {_, N} -> N;
         _      -> not_found
     end,
-    StageName = list_to_binary(Stage),
-    case event_server:get_stage_results(Name, StageName) of
+    case event_server:get_stage_results(binary_to_list(Name), StageName) of
         {ok, _Res} = OK -> OK;
         _               -> not_found
     end;
@@ -254,9 +280,8 @@ postop("save_settings", Json) ->
     validate_payload("save_settings", {object, []}, Json,
                      fun(J) ->
                              {struct, Lst} = J,
-                             {ok, App} = application:get_application(),
                              lists:foreach(fun({Key, Val}) ->
-                                                   update_setting(Key, Val, App)
+                                                   update_setting(Key, Val)
                                            end, Lst),
                              {ok, <<"Settings saved">>}
                      end);
@@ -266,17 +291,16 @@ postop(_, _) -> not_found.
 job_file(Name, File) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
     Home = disco:jobhome(Name),
+    lager:info("home, name ~p, ~p", [Home, Name]), 
     {file, File, filename:join([Root, Home])}.
 
-update_setting(<<"max_failure_rate">>, Val, App) ->
-    ok = application:set_env(App, max_failure_rate,
-                             list_to_integer(binary_to_list(Val)));
+update_setting(<<"max_failure_rate">>, Val) ->
+    ok = application:set_env(disco, max_failure_rate, binary_to_integer(Val));
 
-update_setting(<<"accept_new_jobs">>, Val, App) ->
-    ok = application:set_env(App, accept_new_jobs,
-                             list_to_integer(binary_to_list(Val)));
+update_setting(<<"accept_new_jobs">>, Val) ->
+    ok = application:set_env(disco, accept_new_jobs, binary_to_integer(Val));
 
-update_setting(Key, Val, _) ->
+update_setting(Key, Val) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
 dfind(Key, Dict, Default) ->

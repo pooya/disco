@@ -5,7 +5,7 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
--export([op/3]).
+-export([handle/2, init/3, terminate/3]).
 
 -type json() :: binary() | [binary()] | {'struct', [{binary(), json()}]}.
 
@@ -21,25 +21,35 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
--spec parse_auth_token(module()) -> token().
+init(_Type, Req, []) ->
+    {ok, Req, undefined}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
+handle(Req, State) ->
+    {Method, Req1} = cowboy_req:method(Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    Req4 = case op(Method, binary_to_list(Path), Req2) of
+        {ok, Req3} -> Req3;
+        Req3       -> Req3
+    end,
+    {ok, Req4, State}.
+
+-spec parse_auth_token(term()) -> {term, token()}.
 parse_auth_token(Req) ->
-    case Req:get_header_value("authorization") of
-        undefined ->
-            null;
-        "Basic " ++ Auth ->
-            case base64:decode(Auth) of
-                <<"token:", Token/binary>> ->
-                    Token;
-                _ ->
-                    null
-            end;
-        _ ->
+    case cowboy_req:parse_header(<<"authorization">>, Req) of
+        {undefined, _Value, Req1} ->
+            lager:info("Header could not be parsed ~p", [_Value]),
+            {Req1, null};
+        {ok, {<<"basic">>, {<<"token">>, T}}, Req1} ->
+            {Req1, T};
+        {ok, _Auth, Req1} ->
             % Unknown auth, or basic auth that does not follow the spec.
-            null
+            {Req1, null}
     end.
 
--spec op(atom(), string(), module()) -> _.
-op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
+-spec op(atom(), string(), term()) -> _.
+op(<<"POST">>, "/ddfs/ctrl/hosted_tags", Req) ->
     Fun =
         fun(BinHost, _Size) ->
             Host = binary_to_list(BinHost),
@@ -53,7 +63,7 @@ op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
         end,
     process_payload(Fun, Req);
 
-op('GET', "/ddfs/ctrl/gc_stats", Req) ->
+op(<<"GET">>, "/ddfs/ctrl/gc_stats", Req) ->
     case ddfs_master:gc_stats() of
         {ok, none} ->
             okjson(<<"">>, Req);
@@ -69,7 +79,7 @@ op('GET', "/ddfs/ctrl/gc_stats", Req) ->
             on_error(E, Req)
     end;
 
-op('GET', "/ddfs/ctrl/gc_status", Req) ->
+op(<<"GET">>, "/ddfs/ctrl/gc_status", Req) ->
     case ddfs_gc:gc_request(status) of
         {ok, not_running} ->
             okjson(<<"">>, Req);
@@ -81,7 +91,7 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
             on_error(E, Req)
     end;
 
-op('GET', "/ddfs/ctrl/gc_start", Req) ->
+op(<<"GET">>, "/ddfs/ctrl/gc_start", Req) ->
     case ddfs_gc:gc_request(start) of
         {ok, init_wait} ->
             okjson(<<"GC is waiting">>, Req);
@@ -91,7 +101,7 @@ op('GET', "/ddfs/ctrl/gc_start", Req) ->
             on_error(E, Req)
     end;
 
-op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
+op(<<"GET">>, "/ddfs/ctrl/safe_gc_blacklist", Req) ->
     case ddfs_master:safe_gc_blacklist() of
         {ok, Nodes} ->
             Resp = [list_to_binary(disco:host(N)) || N <- Nodes],
@@ -100,28 +110,25 @@ op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
             on_error(E, Req)
     end;
 
-op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
+op(<<"GET">>, "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
-    QS = Req:parse_qs(),
-    K = case lists:keyfind("replicas", 1, QS) of
+    {QS, Req1} = cowboy_req:qs_vals(Req),
+    K = case lists:keyfind(<<"replicas">>, 1, QS) of
             false -> BlobK;
-            {_, X} -> list_to_integer(X)
+            {<<"replicas">>, X} -> list_to_integer(X)
     end,
-    Exc = parse_inclusion(lists:keysearch("exclude", 1, QS)),
-    Include = lists:keysearch("include", 1, QS),
-    Inc = parse_inclusion(Include),
-    case {Include, Inc} of
-        {false, [_H|_T]} ->
-            Req:respond({403, [], ["This must not happen."]});
-        {false, _} ->
-            new_blob(Req, BlobName, K, Inc, Exc);
-        {_, [false]} ->
-            Req:respond({403, [], ["Requested Replica not found."]});
-        {_, [_H|_T]} ->
-            new_blob(Req, BlobName, K, Inc, Exc)
+    Exc = parse_inclusion(lists:keyfind(<<"exclude">>, 1, QS)),
+    Inc = parse_inclusion(lists:keyfind(<<"include">>, 1, QS)),
+    case Inc of
+        [] ->
+            new_blob(Req1, BlobName, K, Inc, Exc);
+        [false] ->
+            cowboy_req:reply(403, [], <<"Requested Replica not found.">>, Req1);
+        [_H|_T] ->
+            new_blob(Req1, BlobName, K, Inc, Exc)
     end;
 
-op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
+op(<<"GET">>, "/ddfs/tags" ++ Prefix0, Req) ->
     Prefix = list_to_binary(string:strip(Prefix0, both, $/)),
     try case ddfs:tags(ddfs_master, Prefix) of
             {ok, Tags} -> okjson(Tags, Req);
@@ -130,102 +137,107 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
     catch K:V -> on_error({K,V}, Req)
     end;
 
-op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
+op(<<"GET">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
-    Token = parse_auth_token(Req),
+    {Req1, Token} = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found."]});
+            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
         {user, AttribName} when byte_size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
-            Req:respond({403, [], ["Attribute name too big."]});
+            cowboy_req:reply(403, [], <<"Attribute name too big.">>, Req1);
         _ ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
-                    Req:ok({"application/json", [], TagData});
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], TagData, Req1);
                 {missing, _} ->
-                    Req:respond({404, [], ["Tag not found."]});
+                    cowboy_req:reply(404, [], <<"Tag not found.">>, Req1);
                 invalid_name ->
-                    Req:respond({403, [], ["Invalid tag."]});
+                    cowboy_req:reply(403, [], <<"Invalid tag.">>, Req1);
                 unknown_attribute ->
-                    Req:respond({404, [], ["Tag attribute not found."]});
+                    cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
                 E ->
-                    on_error(E, Req)
+                    on_error(E, Req1)
             end
     end;
 
-op('POST', "/ddfs/tag/" ++ Tag, Req) ->
-    Token = parse_auth_token(Req),
-    QS = Req:parse_qs(),
-    Opt = if_set("update", QS, [nodup], []),
+op(<<"POST">>, "/ddfs/tag/" ++ Tag, Req) ->
+    {Req1, Token} = parse_auth_token(Req),
+    {QS, Req2} = cowboy_req:qs_vals(Req1),
+    Opt = if_set(<<"update">>, QS, [nodup], []),
     process_payload(
       fun(Urls, _Size) ->
-              case is_set("delayed", QS) of
+              case is_set(<<"delayed">>, QS) of
                   true ->
                       ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
                   false ->
                       ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
               end
-      end, Req);
+      end, Req2);
 
-op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
+op(<<"PUT">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
-    Token = parse_auth_token(Req),
+    {Req1, Token} = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found."]});
+            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
         {user, AttribName} when byte_size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
-            Req:respond({403, [], ["Attribute name too big."]});
+            cowboy_req:reply(403, [], <<"Attribute name too big.">>, Req1);
         _ ->
             Op = fun(Value, Size) ->
                      case Attrib of
                          {user, _} when Size > ?MAX_TAG_ATTRIB_VALUE_SIZE ->
-                             Req:respond({403, [], ["Attribute value too big."]});
+                             cowboy_req:reply(403, [], <<"Attribute value too big.">>, Req1);
                          _ ->
                              ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
                                               Token)
                      end
                  end,
-            process_payload(Op, Req)
+            process_payload(Op, Req1)
     end;
 
-op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
+op(<<"DELETE">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
-    Token = parse_auth_token(Req),
+    {Req1, Token} = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found."]});
+            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
         all ->
             case ddfs:delete(ddfs_master, Tag, Token) of
                 ok ->
-                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
+                                     mochijson2:encode(<<"deleted">>), Req1);
                 E ->
-                    on_error(E, Req)
+                    on_error(E, Req1)
             end;
         _ ->
             case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
                 ok ->
-                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
+                                     mochijson2:encode(<<"deleted">>), Req1);
                 E ->
-                    on_error(E, Req)
+                    on_error(E, Req1)
             end
     end;
 
-op('GET', Path, Req) ->
+op(<<"GET">>, Path, Req) ->
     DdfsRoot = disco:get_setting("DDFS_DATA"),
     ddfs_get:serve_ddfs_file(DdfsRoot, Path, Req);
-op('HEAD', Path, Req) ->
+op(<<"HEAD">>, Path, Req) ->
     DdfsRoot = disco:get_setting("DDFS_DATA"),
     ddfs_get:serve_ddfs_file(DdfsRoot, Path, Req);
 
 op(_, _, Req) ->
-    Req:not_found().
+    {ok, Req1} = cowboy_req:reply(404, Req),
+    Req1.
 
 is_set(Flag, QS) ->
     case lists:keyfind(Flag, 1, QS) of
-        {_, [_|_]} ->
+        {Flag, <<>>} ->
+            false;
+        {Flag, _} ->
             true;
-        _ ->
+        false ->
             false
     end.
 
@@ -252,67 +264,70 @@ gc_phase_msg(rr_blobs_wait) ->
 gc_phase_msg(rr_tags) ->
     <<"GC is re-replicating tags (phase rr_tags).">>.
 
--spec on_error(_, module()) -> _.
+-spec on_error(_, term()) -> _.
 on_error(timeout, Req) ->
-    Req:respond({503, [], ["Temporary server error. Try again."]});
+    cowboy_req:reply(503, [], <<"Temporary server error. Try again.">>, Req);
 on_error({error, timeout}, Req) ->
-    Req:respond({503, [], ["Temporary server error. Try again."]});
+    cowboy_req:reply(503, [], <<"Temporary server error. Try again.">>, Req);
 on_error({error, unauthorized}, Req) ->
-    Req:respond({401, [], ["Incorrect or missing token."]});
+    cowboy_req:reply(401, [], <<"Incorrect or missing token.">>, Req);
 on_error({error, invalid_name}, Req) ->
-    Req:respond({403, [], ["Invalid tag"]});
+    cowboy_req:reply(403, [], <<"Invalid tag">>, Req);
 on_error({error, invalid_url_object}, Req) ->
-    Req:respond({403, [], ["Invalid url object"]});
+    cowboy_req:reply(403, [], <<"Invalid url object">>, Req);
 on_error({error, invalid_attribute_value}, Req) ->
-    Req:respond({403, [], ["Invalid attribute key or value"]});
+    cowboy_req:reply(403, [], <<"Invalid attribute key or value">>, Req);
 on_error({error, too_many_attributes}, Req) ->
-    Req:respond({403, [], ["Too many attributes"]});
+    cowboy_req:reply(403, [], <<"Too many attributes">>, Req);
 on_error({error, unknown_attribute}, Req) ->
-    Req:respond({404, [], ["Tag attribute not found."]});
+    cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req);
 on_error({error, unknown_host}, Req) ->
-    Req:respond({404, [], ["Unknown host."]});
+    cowboy_req:reply(404, [], <<"Unknown host.">>, Req);
 on_error({error, E}, Req) when is_atom(E) ->
-    Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
+    B = atom_to_binary(E, utf8),
+    cowboy_req:reply(500, [], <<"Internal server error: ", B/binary>>, Req);
 on_error(E, Req) ->
     Msg = ["Internal server error: ", io_lib:format("~p", [E])],
-    Req:respond({500, [], Msg}).
+    cowboy_req:reply(500, [], list_to_binary(Msg), Req).
 
--spec okjson(json(), module()) -> _.
+-spec okjson(json(), term()) -> {ok, term()}.
 okjson(Data, Req) ->
-    Req:ok({"application/json", [], mochijson2:encode(Data)}).
+    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
+                     mochijson2:encode(Data), Req).
 
--spec process_payload(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
+-spec process_payload(fun(([binary()], non_neg_integer()) -> _), term()) -> _.
 process_payload(Fun, Req) ->
-    try  BinaryPayload = Req:recv_body(?MAX_TAG_BODY_SIZE),
-         Payload = try mochijson2:decode(BinaryPayload)
-                   catch _:_ -> invalid end,
+    {ok, BinaryPayload, Req1} = cowboy_req:body(Req, [{length, ?MAX_TAG_BODY_SIZE}]),
+    try Payload =
+        try mochijson2:decode(BinaryPayload)
+        catch _:_ -> invalid end,
          case Payload of
              invalid ->
-                 Req:respond({403, [], ["Invalid request body."]});
+                 cowboy_req:reply(403, [], <<"Invalid request body.">>, Req1);
              Value ->
                  case Fun(Value, byte_size(BinaryPayload)) of
-                     {ok, Dst} -> okjson(Dst, Req);
-                     E -> on_error(E, Req)
+                     {ok, Dst} -> okjson(Dst, Req1);
+                     E -> on_error(E, Req1)
                  end
          end
-    catch _:_ -> Req:respond({403, [], ["Invalid request."]})
+    catch _:_ -> cowboy_req:reply(403, [], <<"Invalid request.">>, Req1)
     end.
 
--spec parse_inclusion('false' | {'value', {_, string()}}) -> [node()].
+-spec parse_inclusion('false' | {'value', {_, binary()}}) -> [node()].
 parse_inclusion(false) -> [];
-parse_inclusion({value, {_, Str}}) ->
-    [disco:slave_safe(Host) || Host <- string:tokens(Str, ",")].
+parse_inclusion({_, Str}) ->
+    [disco:slave_safe(Host) || Host <- string:tokens(binary_to_list(Str), ",")].
 
--spec new_blob(module(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
+-spec new_blob(term(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
 new_blob(Req, BlobName, K, Inc, Exc) ->
     case ddfs:new_blob(ddfs_master, BlobName, K, Inc, Exc) of
         {ok, Urls} when length(Urls) < K ->
-            Req:respond({403, [], ["Not enough nodes for replicas."]});
+            cowboy_req:reply(403, [], <<"Not enough nodes for replicas.">>, Req);
         too_many_replicas ->
-            Req:respond({403, [], ["Not enough nodes for replicas."]});
+            cowboy_req:reply(403, [], <<"Not enough nodes for replicas.">>, Req);
         invalid_name ->
-            Req:respond({403, [], ["Invalid prefix."]});
+            cowboy_req:reply(403, [], <<"Invalid prefix.">>, Req);
         {ok, Urls} ->
             okjson([list_to_binary(U) || U <- Urls], Req);
         E ->

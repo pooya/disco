@@ -1,5 +1,5 @@
-
 -module(ddfs_put).
+-export([handle/2, init/3, terminate/3]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -13,53 +13,67 @@
 
 -spec start(non_neg_integer()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
-    ddfs_util:start_web(Port, fun(Req) -> loop(Req:get(path), Req) end, ?MODULE).
+    Dispatch = cowboy_router:compile([
+        {'_', [
+            {"/[...]", ?MODULE, []}
+        ]}
+    ]),
+    error_logger:info_msg("Started ~p at ~p on port ~p", [?MODULE, node(), Port]),
+    cowboy:start_http(?MODULE, 100, [{port, Port}], [{env, [{dispatch, Dispatch}]}]).
 
--spec loop(path(), module()) -> _.
+init(_Type, Req, []) ->
+    {ok, Req, undefined}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
+handle(Req, State) ->
+    {Path, Req1} = cowboy_req:path(Req),
+    {ok, Req2} =  loop(binary_to_list(Path), Req1),
+    {ok, Req2, State}.
+
+
+-spec loop(path(), term()) -> _.
 loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
     loop([$/|RealPath], Req);
 loop("/ddfs/" ++ BlobName, Req) ->
-    % Disable keep-alive
-    erlang:put(mochiweb_request_force_close, true),
-    case {Req:get(method),
-          valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
-        {'PUT', true} ->
+    {Method, Req1} = cowboy_req:method(Req),
+    case {Method, valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
+        {<<"PUT">>, true} ->
             try case ddfs_node:put_blob(BlobName) of
                     {ok, Path, Url} ->
-                        receive_blob(Req, {Path, BlobName}, Url);
+                        receive_blob(Req1, {Path, BlobName}, Url);
                     {error, Path, Error} ->
-                        error_reply(Req, "Could not create path for blob",
+                        error_reply(Req1, "Could not create path for blob",
                                     Path, Error);
                     {error, no_volumes} ->
-                        Req:respond({500, [], "No volumes"});
+                        cowboy_req:reply(500, [], <<"No volumes">>, Req1);
                     full ->
-                        Req:respond({503, [],
-                                     ["Maximum number of uploaders reached. ",
-                                      "Try again later"]});
+                        cowboy_req:reply(503, [], <<"Maximum number of uploaders reached. ",
+                                      "Try again later">>, Req1);
                     {error, Error} ->
-                        error_reply(Req, "Could not put blob", BlobName, Error)
+                        error_reply(Req1, "Could not put blob", BlobName, Error)
                     end
             catch K:V ->
                     error_logger:info_msg("~p: error putting ~p on ~p: ~p:~p",
                                           [?MODULE, BlobName, node(), K, V]),
-                    error_reply(Req, "Could not put blob onto", BlobName, {K,V})
+                    error_reply(Req1, "Could not put blob onto", BlobName, {K,V})
             end;
-        {'PUT', _} ->
-            Req:respond({403, [], ["Invalid blob name"]});
+        {<<"PUT">>, _} ->
+            cowboy_req:reply(403, [], <<"Invalid blob name">>, Req1);
         _ ->
-            Req:respond({501, [], ["Method not supported"]})
+            cowboy_req:reply(501, [], <<"Method not supported">>, Req1)
     end;
 loop(_, Req) ->
-    Req:not_found().
+    cowboy_req:reply(404, Req).
 
 -spec valid_blob({'EXIT' | binary(),_}) -> boolean().
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
--spec receive_blob(module(), {path(), path()}, url()) -> _.
+-spec receive_blob(term(), {path(), path()}, url()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     disco_profile:timed_run(
         fun() ->
@@ -79,12 +93,13 @@ receive_blob(Req, {Path, Fname}, Url) ->
             end
         end, ?MODULE).
 
--spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
+-spec receive_blob(term(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
-    error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
-                          [Req:get(path), Req:get_header_value("content-length"), node()]),
-    case receive_body(Req, IO) of
-        ok ->
+    {ok, BodySize, Req1} = cowboy_req:parse_header(<<"content-length">>, Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p", [Path, BodySize, node()]),
+    case receive_body(Req2, IO) of
+        {ok, Req3} ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
             % NB: Renaming is not atomic below, thus there's a small
@@ -93,47 +108,57 @@ receive_blob(Req, IO, Dst, Url) ->
             % file should not be corrupted.
             case ddfs_util:safe_rename(Dst, Dir) of
                 ok ->
-                    Req:respond({201,
-                        [{"content-type", "application/json"}],
-                            ["\"", Url, "\""]});
+                    cowboy_req:reply(201, [{<<"content-type">>, <<"application/json">>}],
+                                     [<<"\"", Url/binary, "\"">>], Req3);
                 {error, {rename_failed, E}} ->
-                    error_reply(Req, "Rename failed", Dst, E);
+                    error_reply(Req3, "Rename failed", Dst, E);
                 {error, {chmod_failed, E}} ->
-                    error_reply(Req, "Mode change failed", Dst, E);
+                    error_reply(Req3, "Mode change failed", Dst, E);
                 {error, file_exists} ->
-                    error_reply(Req, "File exists", Dst, Dir)
+                    error_reply(Req3, "File exists", Dst, Dir)
             end;
-        Error ->
-            error_reply(Req, "Write failed", Dst, Error)
+        {Error, Req3} ->
+            error_reply(Req3, "Write failed", Dst, Error)
     end.
 
--spec receive_body(module(), file:io_device()) -> _.
+-spec receive_body(term(), file:io_device()) -> {ok|_, term()}.
 receive_body(Req, IO) ->
-    R0 = (catch Req:stream_body(?MAX_RECV_BODY,
-                                fun ({BufLen, Buf}, BodyLen) ->
-                                        case file:write(IO, Buf) of
-                                            ok -> BodyLen + BufLen;
-                                            {error, _E} = Err -> throw(Err)
-                                        end
-                                end, 0)),
-    case R0 of
+    {Req1, Len} = (catch receive_body_into(Req, IO, 0)),
+    case Len of
         % R == <<>> or undefined if body is empty
         R when is_integer(R); R =:= <<>>; R =:= undefined ->
+            {Path, Req2} = cowboy_req:path(Req1),
             error_logger:info_msg("PUT BLOB done with ~p (~p) on ~p",
-                                  [Req:get(path), R, node()]),
+                                  [Path, R, node()]),
             case [file:sync(IO), file:close(IO)] of
-                [ok, ok] -> ok;
-                E -> hd([X || X <- E, X =/= ok])
+                [ok, ok] -> {ok, Req2};
+                E -> {hd([X || X <- E, X =/= ok]), Req2}
             end;
         Error ->
+            {Path, Req2} = cowboy_req:path(Req1),
             error_logger:info_msg("PUT BLOB error for ~p on ~p: ~p",
-                                  [Req:get(path), node(), Error]),
-            Error
+                                  [Path, node(), Error]),
+            {Error, Req2}
     end.
 
--spec error_reply(module(), nonempty_string(), path(), term()) -> _.
+-spec receive_body_into(term(), file:io_device(), non_neg_integer()) -> _.
+receive_body_into(Req, IO, Size) ->
+    case Size > ?MAX_RECV_BODY of
+        true -> throw(io_lib:format("Size is ~p and is too large.", [Size]));
+        false ->
+            case cowboy_req:body(Req) of
+                {ok, Data, Req1} ->
+                    ok = file:write(IO, Data),
+                    {Req1, Size + byte_size(Data)};
+                {more, Data, Req1} ->
+                    ok = file:write(IO, Data),
+                    receive_body_into(Req1, IO, Size + byte_size(Data))
+            end
+    end.
+
+-spec error_reply(term(), nonempty_string(), path(), term()) -> _.
 error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_msg("Error response for ~p on ~p: ~p (error ~p)",
                              [Dst, node(), Msg, Err]),
-    Req:respond({500, [], M}).
+    cowboy_req:reply(500, [], M, Req).

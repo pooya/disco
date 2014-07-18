@@ -1,5 +1,5 @@
-
 -module(ddfs_get).
+-export([handle/2, init/3, terminate/3]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -10,18 +10,33 @@
 
 -spec start(non_neg_integer(), {path(), path()}) -> {ok, pid()} | {error, term()}.
 start(Port, Roots) ->
-    ddfs_util:start_web(Port, fun(Req) -> loop(Req:get(raw_path), Req, Roots) end,
-        ?MODULE).
+    Dispatch = cowboy_router:compile([
+        {'_', [
+            {"/[...]", ?MODULE, [Roots]}
+        ]}
+    ]),
+    error_logger:info_msg("Started ~p at ~p on port ~p", [?MODULE, node(), Port]),
+    cowboy:start_http(?MODULE, 100, [{port, Port}], [{env, [{dispatch, Dispatch}]}]).
 
--spec serve_ddfs_file(path(), path(), module()) -> _.
+init(_Type, Req, [Roots]) ->
+    {ok, Req, Roots}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
+handle(Req, Roots) ->
+    {Path, Req1} = cowboy_req:path(Req),
+    {ok, Req2} =  loop(binary_to_list(Path), Req1, Roots),
+    {ok, Req2, Roots}.
+
+-spec serve_ddfs_file(path(), path(), term()) -> _.
 serve_ddfs_file(DdfsRoot, Path, Req) ->
     loop(Path, Req, {DdfsRoot, none}).
 
--spec serve_disco_file(path(), path(), module()) -> _.
+-spec serve_disco_file(path(), path(), term()) -> _.
 serve_disco_file(DiscoRoot, Path, Req) ->
     loop(Path, Req, {none, DiscoRoot}).
 
--spec loop(path(), module(), {path() | none, path() | none}) -> _.
+-spec loop(path(), term(), {path() | none, path() | none}) -> _.
 loop("/proxy/" ++ Path, Req, Roots) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
@@ -34,56 +49,52 @@ loop("/disco/" ++ Path, Req, {_DdfsRoot, DiscoRoot}) ->
     send_file(Req, Path, DiscoRoot);
 
 loop(_Path, Req, _Roots) ->
-    Req:not_found().
+    cowboy_req:reply(404, Req).
 
-allowed_method('GET') ->
+allowed_method(<<"GET">>) ->
     true;
-allowed_method('HEAD') ->
+allowed_method(<<"HEAD">>) ->
     true;
 allowed_method(_) ->
     false.
 
--spec send_file(module(), path(), path()) -> _.
+-spec send_file(term(), path(), path()) -> _.
 send_file(Req, Path, Root) ->
-    % Disable keep-alive
-    erlang:put(mochiweb_request_force_close, true),
-    case {allowed_method(Req:get(method)),
-          mochiweb_util:safe_relative_path(Path)} of
+    {Method, Req1} = cowboy_req:method(Req),
+    case {allowed_method(Method), mochiweb_util:safe_relative_path(Path)} of
         {true, undefined} ->
-            Req:not_found();
+            cowboy_req:reply(404, Req1);
         {true, SafePath} ->
             try case ddfs_node:gate_get_blob() of
                     ok ->
-                        send_file(Req, filename:join(Root, SafePath));
+                        send_file(Req1, filename:join(Root, SafePath));
                     full ->
-                        Req:respond({503, [],
-                                     ["Maximum number of downloaders reached. ",
-                                      "Try again later"]})
+                        cowboy_req:reply(503, [],
+                                     <<"Maximum number of downloaders reached. ",
+                                      "Try again later">>, Req1)
                 end
             catch K:V ->
                     error_logger:info_msg("~p: error getting ~p on ~p: ~p:~p",
                                           [?MODULE, Path, node(), K, V]),
-                    Req:respond({403, [], ["Disco node is busy"]})
+                    cowboy_req:reply(403, [], <<"Disco node is busy">>, Req1)
             end;
         _ ->
-            Req:respond({501, [], ["Method not supported"]})
+            cowboy_req:reply(501, [], <<"Method not supported">>, Req1)
     end.
 
--spec send_file(module(), path()) -> _.
+-spec send_file(term(), path()) -> _.
 send_file(Req, Path) ->
     case prim_file:read_file_info(Path) of
-        {ok, #file_info{type = regular}} ->
-            case file:open(Path, [read, raw, binary]) of
-                {ok, IO} ->
-                    Req:ok({"application/octet-stream", [], {file, IO}}),
-                    file:close(IO);
-                _ ->
-                    Req:respond({500, [], ["Access failed"]})
-            end;
+        {ok, #file_info{type = regular, size = Size}} ->
+            F = fun(Socket, Transport) ->
+                    Transport:sendfile(Socket, Path)
+                end,
+            Req1 = cowboy_req:set_resp_body_fun(Size, F, Req),
+            cowboy_req:reply(200, [{<<"content-type">>, <<"application/octet-stream">>}], Req1);
         {ok, _} ->
-            Req:respond({403, [], ["Forbidden"]});
+            cowboy_req:reply(403, [], <<"Forbidden">>, Req);
         {error, enoent} ->
-            Req:not_found();
+            cowboy_req:reply(404, Req);
         _ ->
-            Req:respond({500, [], ["Access failed"]})
+            cowboy_req:reply(500, [], <<"Access failed">>, Req)
     end.
