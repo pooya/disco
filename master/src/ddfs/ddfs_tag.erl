@@ -445,8 +445,7 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
     NewUrls = gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId),
     {ok, NewTagContent} =
         ddfs_tag_util:update_tagcontent(TagName, urls, NewUrls, Tag, null),
-    TagId = NewTagContent#tagcontent.id,
-    case put_distribute({TagId, NewTagContent}) of
+    case put_distribute(NewTagContent) of
         {ok, DestNodes, DestUrls} ->
             S#state{data = {ok, NewTagContent},
                     replicas = DestNodes,
@@ -638,8 +637,7 @@ do_put({_, Token},
        #state{tag = TagName, data = TagData} = S) ->
     case ddfs_tag_util:update_tagcontent(TagName, Field, Value, TagData, Token) of
         {ok, TagContent} ->
-            TagID = TagContent#tagcontent.id,
-            case put_distribute({TagID, TagContent}) of
+            case put_distribute(TagContent) of
                 {ok, DestNodes, DestUrls} ->
                     case TagData of
                         {missing, _} ->
@@ -662,8 +660,7 @@ do_put({_, Token},
 
 do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
     TagContent = ddfs_tag_util:delete_tagattrib(TagName, Field, D),
-    TagId = TagContent#tagcontent.id,
-    case put_distribute({TagId, TagContent}) of
+    case put_distribute(TagContent) of
         {ok, DestNodes, DestUrls} ->
             _ = send_replies(ReplyTo, ok),
             S#state{data = {ok, TagContent},
@@ -683,25 +680,25 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
--spec put_distribute({tagid(), tagcontent()})
+-spec put_distribute(tagcontent())
                     -> {error, commit_failed | replication_failed}
                            | {ok, [node()], [url(), ...]}.
-put_distribute({TagID, _} = Msg) ->
-    case put_distribute(Msg, get(tagk), [], []) of
+put_distribute(#tagcontent{id = TagID} = TagContent) ->
+    case put_distribute(TagContent, get(tagk), [], []) of
         {ok, TagVol} ->
             put_commit(TagID, TagVol);
         {error, _} = E ->
             E
     end.
 
--spec put_distribute({tagid(), tagcontent()}, non_neg_integer(),
+-spec put_distribute(tagcontent(), non_neg_integer(),
                      [{node(), volume_name()}], [node()])
                     -> {error, replication_failed}
                            | {ok, [{node(), volume_name()}]}.
 put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
     {ok, OkNodes};
 
-put_distribute(Msg, K, OkNodes, Exclude) ->
+put_distribute(TagContent, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = ddfs_master:choose_write_nodes(K0, [], Exclude),
@@ -713,9 +710,9 @@ put_distribute(Msg, K, OkNodes, Exclude) ->
         true ->
             {Replies, Failed} = gen_server:multi_call(Nodes,
                                                       ddfs_node,
-                                                      {put_tag_data, Msg},
+                                                      {put_tag_data, TagContent},
                                                       ?NODE_TIMEOUT),
-            put_distribute(Msg, K,
+            put_distribute(TagContent, K,
                            OkNodes ++ [{Node, VolName}
                                        || {Node, {ok, VolName}} <- Replies],
                            Exclude ++ [Node || {Node, _} <- Replies] ++ Failed)

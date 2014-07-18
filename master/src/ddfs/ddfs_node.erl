@@ -119,7 +119,7 @@ init(Config) ->
 -type get_tag_ts_msg() :: {get_tag_timestamp, tagname()}.
 -type get_tag_data_msg() :: {get_tag_data, tagid(),
                              {erlang:timestamp(), volume_name()}}.
--type put_tag_data_msg() :: {put_tag_data, {tagid(), tagcontent()}}.
+-type put_tag_data_msg() :: {put_tag_data, tagcontent()}.
 -type put_tag_commit_msg() :: {put_tag_commit, tagname(),
                                [{node(), volume_name()}]}.
 
@@ -163,8 +163,8 @@ handle_call({get_tag_data, TagId, {_Time, VolName}}, From, State) ->
     spawn(fun() -> do_get_tag_data(TagId, VolName, From, State) end),
     {noreply, State};
 
-handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
-    {reply, do_put_tag_data(Tag, Data, S), S};
+handle_call({put_tag_data, TagContent}, _From, S) ->
+    {reply, do_put_tag_data(TagContent, S), S};
 
 handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {Reply, S1} = do_put_tag_commit(Tag, TagVol, S),
@@ -272,10 +272,10 @@ do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
     end.
 
 -type put_tag_data_result() :: {ok, volume_name()} | {error, _}.
--spec do_put_tag_data(tagname(), tagcontent(), state()) -> put_tag_data_result().
-do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
+-spec do_put_tag_data(tagcontent(), state()) -> put_tag_data_result().
+do_put_tag_data(_Content, #state{vols = []}) ->
     {error, no_volumes};
-do_put_tag_data(Tag, Content, #state{nodename = NodeName,
+do_put_tag_data(#tagcontent{id = Tag} = Content, #state{nodename = NodeName,
                                   vols = Vols,
                                   root = Root}) ->
     {_Space, VolName} = choose_vol(Vols),
