@@ -704,7 +704,7 @@ put_distribute({TagID, _} = Msg) ->
 put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
     {ok, OkNodes};
 
-put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
+put_distribute(Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = ddfs_master:choose_write_nodes(K0, [], Exclude),
@@ -714,10 +714,9 @@ put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
         Nodes =:= [] ->
             {ok, OkNodes};
         true ->
-            PutMsg = {TagID, TagData},
             {Replies, Failed} = gen_server:multi_call(Nodes,
                                                       ddfs_node,
-                                                      {put_tag_data, PutMsg},
+                                                      {put_tag_data, Msg},
                                                       ?NODE_TIMEOUT),
             put_distribute(Msg, K,
                            OkNodes ++ [{Node, VolName}
