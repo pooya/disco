@@ -1,7 +1,6 @@
 -module(web_server).
 
 -export([start/1]).
--define(HANDLERS, ["ddfs", "disco"]).
 
 -include("config.hrl").
 
@@ -10,21 +9,17 @@ start(Port) ->
     disco_profile:new_histogram(?MODULE),
     disco_profile:new_histogram(disco_web),
     disco_profile:new_histogram(ddfs_web),
-    Conf = [{loop, fun loop/1},
-            {name, web_server},
-            {max, ?MAX_HTTP_CONNECTIONS},
-            {port, Port}],
-    case mochiweb_http:start(Conf) of
-        {ok, Pid} ->
-            lager:info("web server (mochiweb) starts"),
-            {ok, Pid};
-        {_Error, E} ->
-            lager:error("Starting web server failed: ~p", [E]),
-            {error, E}
-    end.
-
-loop(Req) ->
-    loop(Req:get(path), Req).
+    Dispatch = cowboy_router:compile([
+        {'_', [
+            {"/disco", disco_web, []},
+            {"/ddfs",  ddfs_web, []},
+            {"/proxy",  disco_web, []}, % TODO add a module for proxy
+            {"/", disco_web, []} %TODO add handler for other paths
+        ]}
+    ]),
+    {ok, _} = cowboy:start_http(http, 100, [{port, 8080}], [
+            env, {env, [{dispatch, Dispatch}]}
+        ]).
 
 loop("/proxy/" ++ Path, Req) ->
     % Unwrap '/proxy/<nodename>/<meth>/path' to '/path'.

@@ -1,10 +1,17 @@
 -module(disco_web).
 -export([op/3]).
+-export([handle/2]).
 
 -include("common_types.hrl").
 -include("disco.hrl").
 -include("pipeline.hrl").
 -include("config.hrl").
+
+handle(Req, State) ->
+    {Method, Req1} = cowboy_req:method(Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    Req3 = op(Method, Path, Req2), % the request should be treated opaque
+    {ok, Req3, State}.
 
 -spec op(atom(), string(), module()) -> _.
 op('GET', "/disco/version", Req) ->
@@ -59,9 +66,17 @@ op(_, _, Req) ->
     Req:not_found().
 
 reply({ok, Data}, Req) ->
-    Req:ok({"application/json", [], mochijson2:encode(Data)});
+    {ok, Req2} = cowboy_req:reply(200,
+        [{<<"content-type">>, <<"application/json">>} ],
+        mochijson2:encode(Data), Req),
+    Req2;
+
 reply({raw, Data}, Req) ->
-    Req:ok({"text/plain", [], Data});
+    {ok, Req2} = cowboy_req:reply(200,
+        [{<<"content-type">>, <<"text/plain">>} ],
+        Data, Req),
+    Req2;
+
 reply({file, File, Docroot}, Req) ->
     Req:serve_file(File, Docroot);
 reply(not_found, Req) ->
