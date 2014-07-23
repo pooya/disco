@@ -300,6 +300,9 @@ handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
     S1 = S#state{last_response_time = now()},
     {reply, check_is_orphan(S, Type, ObjName, Node, Vol), S1};
 
+handle_call({dbg_get_pending, Node}, _, S) ->
+    {reply, lists:flatten(ets:lookup(gc_blob_map, {{'$1', Node}, pending})), S};
+
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S}.
 
