@@ -17,8 +17,8 @@ package_dir = os.path.realpath(os.path.dirname(__file__))
 
 setup(name='disco',
       version=os.getenv('DISCO_VERSION'),
-      description='An open-source mapreduce framework.',
+      description='An open source big data framework.',
       url='http://discoproject.org',
-      author='Nokia Research Center',
+      author='Disco Authors',
       install_requires=['pyyaml'],
       packages=list(packages(package_dir)))
