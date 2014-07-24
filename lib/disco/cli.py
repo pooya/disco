@@ -246,6 +246,7 @@ class Master(clx.server.Server):
                  '-pa', edep('folsom'),
                  '-pa', edep('folsomite'),
                  '-pa', edep('plists'),
+                 '-pa', edep('eflame'),
                  '-eval', 'application:start(disco)'])
         return ret
 
