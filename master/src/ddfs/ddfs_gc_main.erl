@@ -301,7 +301,7 @@ handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
     {reply, check_is_orphan(S, Type, ObjName, Node, Vol), S1};
 
 handle_call({dbg_get_pending, Node}, _, S) ->
-    {reply, lists:flatten(ets:lookup(gc_blob_map, {{'$1', Node}, pending})), S};
+    {reply, lists:flatten(ets:match(gc_blob_map, {{'$1', Node}, pending})), S};
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S}.
@@ -629,7 +629,7 @@ update_peer(Peers, Node, Pid) ->
 
 -spec resend_pending(node(), pid()) -> non_neg_integer().
 resend_pending(Node, Pid) ->
-    Objects = lists:flatten(ets:lookup(gc_blob_map, {{'$1', Node}, pending})),
+    Objects = lists:flatten(ets:match(gc_blob_map, {{'$1', Node}, pending})),
     lists:foreach(fun([ObjName]) ->
                           node_send(Pid, {check_blob, ObjName})
                   end, Objects),
