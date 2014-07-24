@@ -285,8 +285,8 @@ init({Root, DeletedAges}) ->
     %               State :: 'pending' | 'missing' | check_blob_result()}
     % gc_tag_map:  {Key :: tagname(),
     %               Id  :: erlang:timestamp()}
-    _ = ets:new(gc_blob_map, [named_table, set, private]),
-    _ = ets:new(gc_tag_map, [named_table, set, private]),
+    _ = ets:new(gc_blob_map, [named_table, set, public]),
+    _ = ets:new(gc_tag_map, [named_table, set, public]),
 
     process_flag(trap_exit, true),
     gen_server:cast(self(), start),
