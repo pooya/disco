@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html charset="utf-8" >
+    <head>
+        <script src="/js/angular.min.js"> </script>
+        <script src="/js/ddfs.js"> </script>
+    </head>
+    <body ng-app="DdfsApp">
+        <div ng-controller="tagController">
+            <input type="text" ng-model="tagFilter" ng-animate=" 'slide' ">
+            <ul>
+                <li ng-repeat="tag in tags | filter:tagFilter">{{tag}}</li>
+            </ul>
+        </div>
+    </body>
+</html>
