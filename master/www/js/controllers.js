@@ -12,4 +12,8 @@ controllers.controller("tagController", ["$http", "$scope", function($http, $sco
 controllers.controller("selectedTagController", ["$http", "$scope", "$routeParams",
                function($http, $scope, $routeParams) {
     $scope.selectedTag = $routeParams.tag;
+    $http.get("ddfs/tag/" + $scope.selectedTag).then(function(res) {
+        $scope.tag = res.data;
+        console.log($scope.tag.urls);
+    });
 }]);
