@@ -1,8 +1,19 @@
-var app = angular.module("DdfsApp", ["ngRoute"]);
+'use strict';
 
-app.controller("tagController", ["$http", "$scope", function($http, $scope) {
-    $scope.selectedTag = "hello";
-    $http.get("/ddfs/tags").then(function(res) {
-        $scope.tags = res.data;                
+var app = angular.module("ddfsApp", ["ngRoute", "ddfsControllers"]);
+
+app.config(['$routeProvider', function($routeProvider) {
+    $routeProvider.
+    when("/", {
+        templateUrl: "partials/ddfs_tags.html",
+        controller: "tagController"
+    }).
+    when("/tag/:tag", {
+        templateUrl: "partials/ddfs_tag.html",
+        controller: "selectedTagController"
+    }).
+    otherwise({
+        redirectTo: "/"
     });
 }]);
+
