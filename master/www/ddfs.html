@@ -1,15 +1,25 @@
 <!DOCTYPE html>
-<html charset="utf-8" >
+<html lang="utf-8">
     <head>
         <script src="/js/angular.min.js"> </script>
+        <script src="/js/angular-route.min.js"> </script>
         <script src="/js/ddfs.js"> </script>
+        <link rel="stylesheet" href="/css/ddfs.css">
+        <link rel="stylesheet" href="/css/bootstrap.min.css">
     </head>
     <body ng-app="DdfsApp">
         <div ng-controller="tagController">
+            <div id=main>
+                {{selectedTag}}
+            </div>
+        </div>
+        <aside id="aside" ng-controller="tagController">
             <input type="text" ng-model="tagFilter" ng-animate=" 'slide' ">
             <ul>
-                <li ng-repeat="tag in tags | filter:tagFilter">{{tag}}</li>
+                <li ng-repeat="tag in tags | filter:tagFilter">
+                    <a href="#/tag/{{tag}}">{{tag}}</a>
+                </li>
             </ul>
-        </div>
+        </aside>
     </body>
 </html>
