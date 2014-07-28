@@ -1,5 +1,5 @@
 <div id="aside">
-    <input type="text" ng-model="tagFilter" ng-animate=" 'slide' ">
+    <input type="text" ng-model="tagFilter">
     <ul>
         <li ng-repeat="tag in tags | filter:tagFilter">
             <a href="#/tag/{{tag}}">{{tag}}</a>
