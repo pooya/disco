@@ -1,8 +1,9 @@
-<div id="aside">
+<div>
     <input type="text" ng-model="tagFilter">
     <ul>
         <li ng-repeat="tag in tags | filter:tagFilter">
-            <a href="#/tag/{{tag}}">{{tag}}</a>
+        <btn ng-submit="getTag"> </btn>
+        <a href="#" ng-click="getTag(tag)">{{tag}}</a>
         </li>
     </ul>
 </div>

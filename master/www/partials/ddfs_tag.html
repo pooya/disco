@@ -1,17 +1,14 @@
 <div>
-    <div id="main">
-        {{selectedTag}}
-    </div>
-    <div id="tag_data">
+    <div>
         <ul>
-            <li> version: {{tag.version}}</li>
-            <li> id: {{tag.id}}</li>
-            <li> last-modified: {{tag["last-modified"] | date:"MM/dd/yyyy"}}</li>
-            <ul ng-repeat="blob in tag.urls">
+            <li> version: {{selectedTag.version}}</li>
+            <li> id: {{selectedTag.id}}</li>
+            <li> last-modified: {{selectedTag["last-modified"] | date:"MM/dd/yyyy"}}</li>
+            <ul ng-repeat="blob in selectedTag.urls">
                <li ng-repeat="replica in blob">{{replica}}</li>
             </ul>
             </li>
-            <li> user-data: {{tag["user-data"]}}</li>
+            <li> user-data: {{selectedTag["user-data"]}}</li>
             </ul>
     </div>
 </div>

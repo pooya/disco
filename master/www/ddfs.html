@@ -5,10 +5,28 @@
         <script src="/js/angular-route.min.js"> </script>
         <script src="/js/ddfs.js"> </script>
         <script src="/js/controllers.js"> </script>
-        <link rel="stylesheet" href="/css/ddfs.css">
         <link rel="stylesheet" href="/css/bootstrap.min.css">
+        <link href="css/simple-sidebar.css" rel="stylesheet">
     </head>
     <body ng-app="ddfsApp">
-        <div ng-view></div>
+        <ul class="nav nav-pills navbar-inverse" role="tablist">
+            <li class="active"><a href="#">DDFS</a></li>
+            <li ><a href="#">HOME</a></li>
+        </ul>
+        <div id="wrapper">
+            <div id="sidebar-wrapper">
+                <ddfs-tags></ddfs-tags>
+            </div>
+
+            <div id="page-content-wrapper" ng-show="selectedTag">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <p><ddfs-tag></ddfs-tag></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </body>
 </html>
