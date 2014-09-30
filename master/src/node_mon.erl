@@ -107,6 +107,8 @@ slave_env() ->
 slave_start(Host, RealHost) ->
     SlaveName = disco:slave_name(Host),
     lager:info("Starting node ~p on ~p (~p)", [SlaveName, Host, RealHost]),
+    Result = os:cmd("/run_slave.sh"),
+    lager:info("Result of running slave is: ~p", [Result]),
     slave:start(RealHost,
                 SlaveName,
                 slave_env(),

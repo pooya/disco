@@ -70,6 +70,7 @@ const myCommand :Spk.Manifest.Command = (
     # Note that this defines the *entire* environment seen by your app.
     (key = "PATH", value = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"),
     (key = "HOME", value = "/var"),
+    (key = "USER", value = "shayan"),
     (key = "DISCO_HOME", value = "/"),
     (key = "DISCO_ROOT", value = "/var/disco")
   ]
