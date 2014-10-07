@@ -730,17 +730,23 @@ put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
                 -> {error, commit_failed} | {ok, [node()], [url(), ...]}.
 put_commit(TagID, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),
-    {NodeUrls, _} = gen_server:multi_call(Nodes,
+    {NodeUrls, BadNodes} = gen_server:multi_call(Nodes,
                                           ddfs_node,
                                           {put_tag_commit, TagID, TagVol},
                                           ?NODE_TIMEOUT),
-    case [Url || {_Node, {ok, Url}} <- NodeUrls] of
+    case BadNodes of
+      [] -> ok;
+      _  -> lager:info("There was problems committing tag ~p on ~p nodes: ~p",
+              [TagID, length(BadNodes), BadNodes])
+    end,
+    case NodeUrls of
         [] ->
             {error, commit_failed};
-        Urls ->
+        _ ->
             lager:info("Updated tag ~p (at ~p locations)",
-                       [TagID, length(Urls)]),
-            {ok, Nodes, Urls}
+                       [TagID, length(NodeUrls)]),
+            {CNodes, Urls} = lists:unzip([{Node,Url} || {Node, {ok, Url}} <- NodeUrls]),
+            {ok, CNodes, Urls}
     end.
 
 -spec do_delete(replyto(), state()) -> state().
