@@ -712,7 +712,8 @@ put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
         Nodes =:= [], length(OkNodes) < TagMinK ->
             {error, replication_failed};
         Nodes =:= [] ->
-            {ok, OkNodes};
+            lager:info("not enough nodes for the tag: ~p ~p ~p", [TagID, K, OkNodes]),
+            {error, replication_failed};
         true ->
             PutMsg = {TagID, TagData},
             {Replies, Failed} = gen_server:multi_call(Nodes,
