@@ -1,0 +1,10 @@
+{build, "make"}.
+{test_path, "master/ebin"}.
+{deps, "master/deps/bear/ebin"}.
+{deps, "master/deps/folsom/ebin"}.
+{deps, "master/deps/folsomite/ebin"}.
+{deps, "master/deps/lager/ebin"}.
+{deps, "master/deps/meck/ebin"}.
+{deps, "master/deps/mochiweb/ebin"}.
+{deps, "master/deps/plists/ebin"}.
+
