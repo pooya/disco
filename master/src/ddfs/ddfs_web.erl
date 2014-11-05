@@ -5,7 +5,7 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
--export([op/3]).
+-export([handle/2]).
 
 -type json() :: binary() | [binary()] | {'struct', [{binary(), json()}]}.
 
@@ -20,6 +20,12 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, "ddfs:" ++ _} -> {T, unknown_attribute};
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
+
+handle(Req, State) ->
+    {Method, Req1} = cowboy_req:method(Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    Req3 = op(Method, Path, Req2), % the request should be treated opaque
+    {ok, Req3, State}.
 
 -spec parse_auth_token(module()) -> token().
 parse_auth_token(Req) ->

@@ -39,6 +39,7 @@ start(_Type, _Args) ->
     ok = application:start(syntax_tools),
     ok = application:start(goldrush),
     ok = application:start(lager),
+    ok = application:start(ranch),
     ok = disco_profile:start_apps(),
     ok = inets:start(),
     init_settings(),
@@ -61,7 +62,7 @@ init([Port]) ->
             permanent, 10, worker, dynamic},
          {disco_server, {disco_server, start_link, []},
             permanent, 10, worker, dynamic},
-         {mochi_server, {web_server, start, [Port]},
+         {cowboy_server, {web_server, start, [Port]},
             permanent, 10, worker, dynamic}
         ]
     }}.

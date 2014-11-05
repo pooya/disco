@@ -19,15 +19,15 @@ op('GET', "/disco/version", Req) ->
     reply({ok, list_to_binary(Vsn)}, Req);
 
 op('POST', "/disco/job/" ++ _, Req) ->
-    BodySize = list_to_integer(Req:get_header_value("content-length")),
+    BodySize = cowboy_req:parse_header(<<"content-length">>, Req),
     if BodySize > ?MAX_JOB_PACKET ->
-            Req:respond({413, [], ["Job packet too large"]});
+           cowboy_req:reply(413, [], <<"Job packet too large">>, Req);
     true ->
         case application:get_env(accept_new_jobs) of
             {ok, 0} ->
-                Req:respond({403, [], ["No new jobs should be submitted to this cluster."]});
+                cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>);
             _ ->
-                Body = Req:recv_body(?MAX_JOB_PACKET),
+                {ok, Body, Req1} = cowboy_req:body(Req),
                 Reply =
                     try
                         {ok, JobName} = job_coordinator:new(Body),
@@ -41,29 +41,33 @@ op('POST', "/disco/job/" ++ _, Req) ->
                             lager:warning("Job failed to start: ~p:~p", [K, E]),
                             [<<"error">>, list_to_binary(ErrorString)]
                     end,
-                reply({ok, Reply}, Req)
+                reply({ok, Reply}, Req1)
         end
     end;
 
 op('POST', "/disco/ctrl/" ++ Op, Req) ->
-    Json = mochijson2:decode(Req:recv_body(?MAX_JSON_POST)),
-    reply(postop(Op, Json), Req);
+    {ok, BinBody, Req1} = cowboy_req:body(Req),
+    Body = binary_to_list(BinBody),
+    Json = mochijson2:decode(Body),
+    reply(postop(Op, Json), Req1);
 
 op('GET', "/disco/ctrl/" ++ Op, Req) ->
-    Query = Req:parse_qs(),
+    {ok, BinQuery, Req1} = cowboy_req:body_qs(Req),
+    Query = mochijson2:decode(BinQuery),
+
     Name =
         case lists:keyfind("name", 1, Query) of
             {_, N} -> N;
             _      -> false
         end,
-    reply(getop(Op, {Query, Name}), Req);
+    reply(getop(Op, {Query, Name}), Req1);
 
 op('GET', Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
-    Req:not_found().
+    cowboy_req:reply(404, [], <<>>, Req).
 
 reply({ok, Data}, Req) ->
     {ok, Req2} = cowboy_req:reply(200,
@@ -73,16 +77,19 @@ reply({ok, Data}, Req) ->
 
 reply({raw, Data}, Req) ->
     {ok, Req2} = cowboy_req:reply(200,
-        [{<<"content-type">>, <<"text/plain">>} ],
+        [{<<"content-type">>, <<"text/plain">>}],
         Data, Req),
     Req2;
 
 reply({file, File, Docroot}, Req) ->
-    Req:serve_file(File, Docroot);
+    F = fun(Socket, Transport) ->
+            Transport:sendfile(Socket, filename:join([Docroot, File]))
+        end,
+    cowboy_req:set_resp_body_fun(F, Req);
 reply(not_found, Req) ->
-    Req:not_found();
+    cowboy_req:reply(404, [], <<>>, Req);
 reply({error, E}, Req) ->
-    Req:respond({400, [], mochijson2:encode(E)}).
+    cowboy_req:reply(400, [], list_to_binary(mochijson2:encode(E)), Req).
 
 getop("load_config_table", _Query) ->
     disco_config:get_config_table();
