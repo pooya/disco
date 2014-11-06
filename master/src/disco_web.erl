@@ -58,20 +58,17 @@ op(<<"POST">>, "/disco/ctrl/" ++ Op, Req) ->
     reply(postop(Op, Json), Req1);
 
 op(<<"GET">>, "/disco/ctrl/" ++ Op, Req) ->
-    {ok, Query, Req1} = cowboy_req:body_qs(Req),
-    Name =
-        case lists:keyfind("name", 1, Query) of
-            {_, N} -> N;
-            _      -> false
-        end,
-    reply(getop(Op, {Query, Name}), Req1);
+    {Name, Req1} = cowboy_req:qs_val(<<"name">>, Req, false),
+    {Qs, Req2} = cowboy_req:qs(Req1),
+    reply(getop(Op, {Qs, Name}), Req2);
 
 op(<<"GET">>, Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
-    cowboy_req:reply(404, [], <<>>, Req).
+    {ok, Req1} = cowboy_req:reply(404, [], <<>>, Req),
+    Req1.
 
 reply({ok, Data}, Req) ->
     {ok, Req2} = cowboy_req:reply(200,
@@ -86,14 +83,18 @@ reply({raw, Data}, Req) ->
     Req2;
 
 reply({file, File, Docroot}, Req) ->
+    lager:info("Replying with file ~p Docroot ~p", [File, Docroot]),
     F = fun(Socket, Transport) ->
             Transport:sendfile(Socket, filename:join([Docroot, File]))
         end,
     cowboy_req:set_resp_body_fun(F, Req);
 reply(not_found, Req) ->
-    cowboy_req:reply(404, [], <<>>, Req);
+    {ok, Req1} = cowboy_req:reply(404, [], <<>>, Req),
+    Req1;
+
 reply({error, E}, Req) ->
-    cowboy_req:reply(400, [], list_to_binary(mochijson2:encode(E)), Req).
+    {ok, Req1} = cowboy_req:reply(400, [], list_to_binary(mochijson2:encode(E)), Req),
+    Req1.
 
 getop("load_config_table", _Query) ->
     disco_config:get_config_table();
@@ -292,6 +293,7 @@ postop(_, _) -> not_found.
 job_file(Name, File) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
     Home = disco:jobhome(Name),
+    lager:info("home, name ~p, ~p", [Home, Name]), 
     {file, File, filename:join([Root, Home])}.
 
 update_setting(<<"max_failure_rate">>, Val, App) ->
