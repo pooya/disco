@@ -12,9 +12,9 @@ start(Port) ->
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/disco/[...]", disco_web, []},
-            {"/ddfs",  ddfs_web, []}%,
+            {"/ddfs", ddfs_web, []},
+            {"/", toppage_handler, []}
             %{"/proxy",  disco_web, []}, % TODO add a module for proxy
-            %{"/", disco_web, []} %TODO add handler for other paths
         ]}
     ]),
     %{ok, _} = cowboy:start_http(http, 100, [{port, 8080}],[{env, [{dispatch, Dispatch}]}]).
