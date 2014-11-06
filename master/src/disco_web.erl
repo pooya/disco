@@ -58,9 +58,7 @@ op(<<"POST">>, "/disco/ctrl/" ++ Op, Req) ->
     reply(postop(Op, Json), Req1);
 
 op(<<"GET">>, "/disco/ctrl/" ++ Op, Req) ->
-    {ok, BinQuery, Req1} = cowboy_req:body_qs(Req),
-    Query = mochijson2:decode(BinQuery),
-
+    {ok, Query, Req1} = cowboy_req:body_qs(Req),
     Name =
         case lists:keyfind("name", 1, Query) of
             {_, N} -> N;
