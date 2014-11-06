@@ -13,19 +13,18 @@ terminate(_Reason, _Req, _State) ->
     ok.
 
 handle(Req, State) ->
-    {ok, Req, State}.
-    %{Method, Req1} = cowboy_req:method(Req),
-    %{Path, Req2} = cowboy_req:path(Req1),
-    %lager:info("Path is: ~p", [Path]),
-    %Req3 = op(Method, Path, Req2), % the request should be treated opaque
-    %{ok, Req3, State}.
+    {Method, Req1} = cowboy_req:method(Req),
+    {Path, Req2} = cowboy_req:path(Req1),
+    lager:info("Method is: ~p Path is ~p", [Method, Path]),
+    Req3 = op(Method, binary_to_list(Path), Req2), % the request should be treated opaque
+    {ok, Req3, State}.
 
--spec op(atom(), string(), module()) -> _.
-op('GET', "/disco/version", Req) ->
+-spec op(binary(), string(), term()) -> _.
+op(<<"GET">>, "/disco/version", Req) ->
     {ok, Vsn} = application:get_key(vsn),
     reply({ok, list_to_binary(Vsn)}, Req);
 
-op('POST', "/disco/job/" ++ _, Req) ->
+op(<<"POST">>, "/disco/job/" ++ _, Req) ->
     BodySize = cowboy_req:parse_header(<<"content-length">>, Req),
     if BodySize > ?MAX_JOB_PACKET ->
            cowboy_req:reply(413, [], <<"Job packet too large">>, Req);
@@ -52,13 +51,13 @@ op('POST', "/disco/job/" ++ _, Req) ->
         end
     end;
 
-op('POST', "/disco/ctrl/" ++ Op, Req) ->
+op(<<"POST">>, "/disco/ctrl/" ++ Op, Req) ->
     {ok, BinBody, Req1} = cowboy_req:body(Req),
     Body = binary_to_list(BinBody),
     Json = mochijson2:decode(Body),
     reply(postop(Op, Json), Req1);
 
-op('GET', "/disco/ctrl/" ++ Op, Req) ->
+op(<<"GET">>, "/disco/ctrl/" ++ Op, Req) ->
     {ok, BinQuery, Req1} = cowboy_req:body_qs(Req),
     Query = mochijson2:decode(BinQuery),
 
@@ -69,7 +68,7 @@ op('GET', "/disco/ctrl/" ++ Op, Req) ->
         end,
     reply(getop(Op, {Query, Name}), Req1);
 
-op('GET', Path, Req) ->
+op(<<"GET">>, Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 

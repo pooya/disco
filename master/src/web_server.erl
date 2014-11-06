@@ -11,9 +11,8 @@ start(Port) ->
     disco_profile:new_histogram(ddfs_web),
     Dispatch = cowboy_router:compile([
         {'_', [
-            {"/", toppage_handler, []}
-            %{"/disco", disco_web, []}
-            %{"/ddfs",  ddfs_web, []}%,
+            {"/disco/[...]", disco_web, []},
+            {"/ddfs",  ddfs_web, []}%,
             %{"/proxy",  disco_web, []}, % TODO add a module for proxy
             %{"/", disco_web, []} %TODO add handler for other paths
         ]}
