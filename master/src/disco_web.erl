@@ -1,17 +1,24 @@
 -module(disco_web).
+-export([handle/2, init/3, terminate/3]).
 -export([op/3]).
--export([handle/2]).
 
 -include("common_types.hrl").
 -include("disco.hrl").
 -include("pipeline.hrl").
 -include("config.hrl").
 
+init(_Type, Req, []) ->
+    {ok, Req, undefined}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
 handle(Req, State) ->
-    {Method, Req1} = cowboy_req:method(Req),
-    {Path, Req2} = cowboy_req:path(Req1),
-    Req3 = op(Method, Path, Req2), % the request should be treated opaque
-    {ok, Req3, State}.
+    {ok, Req, State}.
+    %{Method, Req1} = cowboy_req:method(Req),
+    %{Path, Req2} = cowboy_req:path(Req1),
+    %lager:info("Path is: ~p", [Path]),
+    %Req3 = op(Method, Path, Req2), % the request should be treated opaque
+    %{ok, Req3, State}.
 
 -spec op(atom(), string(), module()) -> _.
 op('GET', "/disco/version", Req) ->
