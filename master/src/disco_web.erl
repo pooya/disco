@@ -16,7 +16,7 @@ handle(Req, State) ->
     {Method, Req1} = cowboy_req:method(Req),
     {Path, Req2} = cowboy_req:path(Req1),
     lager:info("Method is: ~p Path is ~p", [Method, Path]),
-    Req3 = op(Method, binary_to_list(Path), Req2), % the request should be treated opaque
+    Req3 = op(Method, binary_to_list(Path), Req2),
     {ok, Req3, State}.
 
 -spec op(binary(), string(), term()) -> _.
@@ -67,7 +67,7 @@ op(<<"GET">>, Path, Req) ->
     ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
-    {ok, Req1} = cowboy_req:reply(404, [], <<>>, Req),
+    {ok, Req1} = cowboy_req:reply(404, Req),
     Req1.
 
 reply({ok, Data}, Req) ->
@@ -89,7 +89,7 @@ reply({file, File, Docroot}, Req) ->
         end,
     cowboy_req:set_resp_body_fun(F, Req);
 reply(not_found, Req) ->
-    {ok, Req1} = cowboy_req:reply(404, [], <<>>, Req),
+    {ok, Req1} = cowboy_req:reply(404, Req),
     Req1;
 
 reply({error, E}, Req) ->

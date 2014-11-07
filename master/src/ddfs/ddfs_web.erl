@@ -120,24 +120,24 @@ op(<<"GET">>, "/ddfs/ctrl/safe_gc_blacklist", Req) ->
 
 op(<<"GET">>, "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
-    {Replicas, Req1} = cowboy_req:qs_val(<<"replicas">>, Req, false),
-    K = case Replicas of
+    {QS, Req1} = cowboy_req:qs_vals(Req),
+    lager:info("qs ~p, blobname ~p", [QS, BlobName]),
+    K = case lists:keyfind(<<"replicas">>, 1, QS) of
             false -> BlobK;
             {_, X} -> list_to_integer(X)
     end,
-    {Exclude, Req2} = cowboy_req:qs_val(<<"exclude">>, Req1),
-    Exc = parse_inclusion(Exclude),
-    {Include, Req3} = cowboy_req:qs_val(<<"exclude">>, Req2),
+    Exc = parse_inclusion(lists:keysearch(<<"exclude">>, 1, QS)),
+    Include = lists:keysearch(<<"include">>, 1, QS),
     Inc = parse_inclusion(Include),
     case {Include, Inc} of
         {false, [_H|_T]} ->
-            cowboy_req:reply(403, [], <<"This must not happen.">>, Req3);
+            cowboy_req:reply(403, [], <<"This must not happen.">>, Req1);
         {false, _} ->
-            new_blob(Req, BlobName, K, Inc, Exc);
+            new_blob(Req1, BlobName, K, Inc, Exc);
         {_, [false]} ->
-            cowboy_req:reply(403, [], <<"Requested Replica not found.">>, Req3);
+            cowboy_req:reply(403, [], <<"Requested Replica not found.">>, Req1);
         {_, [_H|_T]} ->
-            new_blob(Req, BlobName, K, Inc, Exc)
+            new_blob(Req1, BlobName, K, Inc, Exc)
     end;
 
 op(<<"GET">>, "/ddfs/tags" ++ Prefix0, Req) ->
@@ -241,7 +241,7 @@ op(<<"HEAD">>, Path, Req) ->
     ddfs_get:serve_ddfs_file(DdfsRoot, Path, Req);
 
 op(_, _, Req) ->
-    {ok, Req1} = cowboy_req:reply(404, [], <<>>, Req),
+    {ok, Req1} = cowboy_req:reply(404, Req),
     Req1.
 
 is_set(Flag, QS) ->
@@ -323,10 +323,10 @@ process_payload(Fun, Req) ->
     catch _:_ -> cowboy_req:reply(403, [], <<"Invalid request.">>, Req)
     end.
 
--spec parse_inclusion('false' | {'value', {_, string()}}) -> [node()].
+-spec parse_inclusion('false' | {'value', {_, binary()}}) -> [node()].
 parse_inclusion(false) -> [];
 parse_inclusion({value, {_, Str}}) ->
-    [disco:slave_safe(Host) || Host <- string:tokens(Str, ",")].
+    [disco:slave_safe(Host) || Host <- string:tokens(binary_to_list(Str), ",")].
 
 -spec new_blob(term(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
