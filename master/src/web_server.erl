@@ -12,7 +12,7 @@ start(Port) ->
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/disco/[...]", disco_web, []},
-            {"/ddfs", ddfs_web, []},
+            {"/ddfs/[...]", ddfs_web, []},
             {"/[...]", toppage_handler, []}
             %{"/proxy",  disco_web, []}, % TODO add a module for proxy
         ]}
