@@ -15,7 +15,7 @@
 start(Port) ->
     ddfs_util:start_web(Port, fun(Req) -> loop(Req:get(path), Req) end, ?MODULE).
 
--spec loop(path(), module()) -> _.
+-spec loop(path(), term()) -> _.
 loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
@@ -56,7 +56,7 @@ valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
--spec receive_blob(module(), {path(), path()}, url()) -> _.
+-spec receive_blob(term(), {path(), path()}, url()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     disco_profile:timed_run(
         fun() ->
@@ -76,7 +76,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
             end
         end, ?MODULE).
 
--spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
+-spec receive_blob(term(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
     {ok, BodySize, Req1} = cowboy_req:parse_header(<<"content-length">>, Req),
     {Path, Req2} = cowboy_req:path(Req1),
@@ -104,19 +104,13 @@ receive_blob(Req, IO, Dst, Url) ->
             error_reply(Req2, "Write failed", Dst, Error)
     end.
 
--spec receive_body(module(), file:io_device()) -> _.
+-spec receive_body(term(), file:io_device()) -> _.
 receive_body(Req, IO) ->
-    R0 = (catch Req:stream_body(?MAX_RECV_BODY,
-                                fun ({BufLen, Buf}, BodyLen) ->
-                                        case file:write(IO, Buf) of
-                                            ok -> BodyLen + BufLen;
-                                            {error, _E} = Err -> throw(Err)
-                                        end
-                                end, 0)),
-    case R0 of
+    {Req1, Len} = (catch receive_body_into(Req, IO, 0)),
+    case Len of
         % R == <<>> or undefined if body is empty
         R when is_integer(R); R =:= <<>>; R =:= undefined ->
-            {Path, _Req1} = cowboy_req:path(Req), % TODO
+            {Path, _Req1} = cowboy_req:path(Req1), % TODO
             error_logger:info_msg("PUT BLOB done with ~p (~p) on ~p",
                                   [Path, R, node()]),
             case [file:sync(IO), file:close(IO)] of
@@ -124,13 +118,29 @@ receive_body(Req, IO) ->
                 E -> hd([X || X <- E, X =/= ok])
             end;
         Error ->
-            {Path, _Req1} = cowboy_req:path(Req), % TODO
+            {Path, _Req1} = cowboy_req:path(Req1), % TODO
             error_logger:info_msg("PUT BLOB error for ~p on ~p: ~p",
                                   [Path, node(), Error]),
             Error
     end.
 
--spec error_reply(module(), nonempty_string(), path(), term()) -> _.
+-spec receive_body_into(term(), file:io_device(), non_neg_integer()) -> _.
+receive_body_into(Req, IO, Size) ->
+    case Size > ?MAX_RECV_BODY of
+        true -> throw(io_lib:format("Size is ~p and is too large.", [Size]));
+        false ->
+            case cowboy_req:body(Req) of
+                {ok, Data, Req1} ->
+                    ok = file:write(IO, Data),
+                    {Req1, Size + byte_size(Data)};
+                {more, Data, Req1} ->
+                    ok = file:write(IO, Data),
+                    receive_body_into(Req1, IO, Size + byte_size(Data))
+            end
+    end.
+
+
+-spec error_reply(term(), nonempty_string(), path(), term()) -> _.
 error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_msg("Error response for ~p on ~p: ~p (error ~p)",
