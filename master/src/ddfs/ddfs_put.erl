@@ -108,7 +108,7 @@ receive_blob(Req, IO, Dst, Url) ->
             % file should not be corrupted.
             case ddfs_util:safe_rename(Dst, Dir) of
                 ok ->
-                    cowboy_req:respon(201, [{<<"content-type">>, <<"application/json">>}],
+                    cowboy_req:reply(201, [{<<"content-type">>, <<"application/json">>}],
                                       ["\"", Url, "\""], Req2);
                 {error, {rename_failed, E}} ->
                     error_reply(Req2, "Rename failed", Dst, E);
