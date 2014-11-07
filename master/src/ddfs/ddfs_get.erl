@@ -1,5 +1,5 @@
-
 -module(ddfs_get).
+-export([handle/2, init/3, terminate/3]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -10,8 +10,23 @@
 
 -spec start(non_neg_integer(), {path(), path()}) -> {ok, pid()} | {error, term()}.
 start(Port, Roots) ->
-    ddfs_util:start_web(Port, fun(Req) -> loop(Req:get(raw_path), Req, Roots) end,
-        ?MODULE).
+    Dispatch = cowboy_router:compile([
+        {'_', [
+            {"/[...]", ?MODULE, [Roots]}
+        ]}
+    ]),
+    error_logger:info_msg("Started ~p at ~p on port ~p", [?MODULE, node(), Port]),
+    cowboy:start_http(http, 100, [{port, Port}], [{env, [{dispatch, Dispatch}]}]).
+
+init(_Type, Req, [Roots]) ->
+    {ok, Req, Roots}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
+handle(Req, Roots) ->
+    {Path, Req1} = cowboy_req:path(Req),
+    {ok, Req2} =  loop(binary_to_list(Path), Req1, Roots),
+    {ok, Req2, Roots}.
 
 -spec serve_ddfs_file(path(), path(), term()) -> _.
 serve_ddfs_file(DdfsRoot, Path, Req) ->

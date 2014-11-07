@@ -26,6 +26,10 @@
 -spec start_link(term(), pid()) -> no_return().
 start_link(Config, NodeMon) ->
     process_flag(trap_exit, true),
+
+    _ = application:start(ranch),
+    _ = application:start(cowlib),
+    _ = application:start(cowboy),
     case gen_server:start_link(
                  {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
         {ok, _Server} ->
