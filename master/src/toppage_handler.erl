@@ -10,17 +10,26 @@
 -export([terminate/3]).
 
 init(_Type, Req, []) ->
-    File = filename:join([disco:get_setting("DISCO_WWW_ROOT"), "index.html"]),
-    {ok, #file_info{size = Size}} = prim_file:read_file_info(File),
-	{ok, Req, {File, Size}}.
+    DocRoot = disco:get_setting("DISCO_WWW_ROOT"),
+	{ok, Req, DocRoot}.
 
-handle(Req, {File, Size}) ->
+handle(Req, DocRoot) ->
+    {Path, Req1} = cowboy_req:path(Req),
+    lager:info("Path is: ~p", [Path]),
+    Req2 = serve_file(Req1, binary_to_list(Path), DocRoot),
+    {ok, Req2, DocRoot}.
+
+
+serve_file(Req, "/", DocRoot) ->
+    serve_file(Req, "/index.html", DocRoot);
+
+serve_file(Req, Path, DocRoot) ->
     F = fun(Socket, Transport) ->
-            Transport:sendfile(Socket, File)
+            Transport:sendfile(Socket, DocRoot ++ Path)
         end,
-    Req1 = cowboy_req:set_resp_body_fun(Size, F, Req), 
+    Req1 = cowboy_req:set_resp_body_fun(F, Req),
     {ok, Req2} = cowboy_req:reply(200, Req1),
-    {ok, Req2, {File, Size}}.
+    Req2.
 
 terminate(_Reason, _Req, _State) ->
 	ok.
