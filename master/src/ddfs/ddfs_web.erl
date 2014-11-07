@@ -36,10 +36,10 @@ handle(Req, State) ->
     end,
     {ok, Req4, State}.
 
--spec parse_auth_token(term()) -> {token(), term()}.
+-spec parse_auth_token(term()) -> token().
 parse_auth_token(Req) ->
-    {AuthHdr, Req1} = cowboy_req:qs_val(<<"authorization">>, Req, undefined),
-    Token = case AuthHdr of
+    AuthHdr = cowboy_req:parse_header(<<"authorization">>, Req),
+    case AuthHdr of
         undefined ->
             null;
         <<"Basic ",AuthBin/binary>> ->
@@ -53,8 +53,7 @@ parse_auth_token(Req) ->
         _ ->
             % Unknown auth, or basic auth that does not follow the spec.
             null
-    end,
-    {Token, Req1}.
+    end.
 
 -spec op(atom(), string(), term()) -> _.
 op(<<"POST">>, "/ddfs/ctrl/hosted_tags", Req) ->
@@ -152,30 +151,30 @@ op(<<"GET">>, "/ddfs/tags" ++ Prefix0, Req) ->
 
 op(<<"GET">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
-    {Token, Req1} = parse_auth_token(Req),
+    Token = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
+            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req);
         {user, AttribName} when byte_size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
-            cowboy_req:reply(403, [], <<"Attribute name too big.">>, Req1);
+            cowboy_req:reply(403, [], <<"Attribute name too big.">>, Req);
         _ ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
-                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], TagData, Req1);
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], TagData, Req);
                 {missing, _} ->
-                    cowboy_req:reply(404, [], <<"Tag not found.">>, Req1);
+                    cowboy_req:reply(404, [], <<"Tag not found.">>, Req);
                 invalid_name ->
-                    cowboy_req:reply(403, [], <<"Invalid tag.">>, Req1);
+                    cowboy_req:reply(403, [], <<"Invalid tag.">>, Req);
                 unknown_attribute ->
-                    cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
+                    cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req);
                 E ->
-                    on_error(E, Req1)
+                    on_error(E, Req)
             end
     end;
 
 op(<<"POST">>, "/ddfs/tag/" ++ Tag, Req) ->
-    {Token, Req1} = parse_auth_token(Req),
-    {QS, Req2} = cowboy_req:qs_vals(Req1),
+    Token = parse_auth_token(Req),
+    {QS, Req1} = cowboy_req:qs_vals(Req),
     Opt = if_set(<<"update">>, QS, [nodup], []),
     process_payload(
       fun(Urls, _Size) ->
@@ -185,51 +184,51 @@ op(<<"POST">>, "/ddfs/tag/" ++ Tag, Req) ->
                   false ->
                       ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
               end
-      end, Req2);
+      end, Req1);
 
 op(<<"PUT">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
-    {Token, Req1} = parse_auth_token(Req),
+    Token = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
+            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req);
         {user, AttribName} when byte_size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
-            cowboy_req:reply(403, [], <<"Attribute name too big.">>, Req1);
+            cowboy_req:reply(403, [], <<"Attribute name too big.">>, Req);
         _ ->
             Op = fun(Value, Size) ->
                      case Attrib of
                          {user, _} when Size > ?MAX_TAG_ATTRIB_VALUE_SIZE ->
-                             cowboy_req:reply(403, [], <<"Attribute value too big.">>, Req1);
+                             cowboy_req:reply(403, [], <<"Attribute value too big.">>, Req);
                          _ ->
                              ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
                                               Token)
                      end
                  end,
-            process_payload(Op, Req1)
+            process_payload(Op, Req)
     end;
 
 op(<<"DELETE">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
-    {Token, Req1} = parse_auth_token(Req),
+    Token = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
+            cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req);
         all ->
             case ddfs:delete(ddfs_master, Tag, Token) of
                 ok ->
                     cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
-                                     mochijson2:encode(<<"deleted">>), Req1);
+                                     mochijson2:encode(<<"deleted">>), Req);
                 E ->
-                    on_error(E, Req1)
+                    on_error(E, Req)
             end;
         _ ->
             case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
                 ok ->
                     cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
-                                     mochijson2:encode(<<"deleted">>), Req1);
+                                     mochijson2:encode(<<"deleted">>), Req);
                 E ->
-                    on_error(E, Req1)
+                    on_error(E, Req)
             end
     end;
 

@@ -21,38 +21,35 @@ loop("/proxy/" ++ Path, Req) ->
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
     loop([$/|RealPath], Req);
 loop("/ddfs/" ++ BlobName, Req) ->
-    % Disable keep-alive
-    erlang:put(mochiweb_request_force_close, true),
-    case {Req:get(method),
-          valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
-        {'PUT', true} ->
+    {Method, Req1} = cowboy_req:method(Req),
+    case {Method, valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
+        {<<"PUT">>, true} ->
             try case ddfs_node:put_blob(BlobName) of
                     {ok, Path, Url} ->
-                        receive_blob(Req, {Path, BlobName}, Url);
+                        receive_blob(Req1, {Path, BlobName}, Url);
                     {error, Path, Error} ->
-                        error_reply(Req, "Could not create path for blob",
+                        error_reply(Req1, "Could not create path for blob",
                                     Path, Error);
                     {error, no_volumes} ->
-                        Req:respond({500, [], "No volumes"});
+                        cowboy_req:reply(500, [], <<"No volumes">>, Req1);
                     full ->
-                        Req:respond({503, [],
-                                     ["Maximum number of uploaders reached. ",
-                                      "Try again later"]});
+                        cowboy_req:reply(503, [], <<"Maximum number of uploaders reached. ",
+                                      "Try again later">>);
                     {error, Error} ->
-                        error_reply(Req, "Could not put blob", BlobName, Error)
+                        error_reply(Req1, "Could not put blob", BlobName, Error)
                     end
             catch K:V ->
                     error_logger:info_msg("~p: error putting ~p on ~p: ~p:~p",
                                           [?MODULE, BlobName, node(), K, V]),
-                    error_reply(Req, "Could not put blob onto", BlobName, {K,V})
+                    error_reply(Req1, "Could not put blob onto", BlobName, {K,V})
             end;
-        {'PUT', _} ->
-            Req:respond({403, [], ["Invalid blob name"]});
+        {<<"PUT">>, _} ->
+            cowboy_req:reply(403, [], <<"Invalid blob name">>, Req1);
         _ ->
-            Req:respond({501, [], ["Method not supported"]})
+            cowboy_req:reply(501, [], <<"Method not supported">>, Req1)
     end;
 loop(_, Req) ->
-    Req:not_found().
+    cowboy_req:reply(404, Req).
 
 -spec valid_blob({'EXIT' | binary(),_}) -> boolean().
 valid_blob({'EXIT', _}) -> false;
@@ -81,8 +78,9 @@ receive_blob(Req, {Path, Fname}, Url) ->
 
 -spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
+    BodySize = cowboy_req:parse_header(<<"content-length">>, Req),
     error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
-                          [Req:get(path), Req:get_header_value("content-length"), node()]),
+                          [Req:get(path), BodySize, node()]),
     case receive_body(Req, IO) of
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
