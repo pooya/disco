@@ -16,8 +16,11 @@ handle(Req, State) ->
     {Method, Req1} = cowboy_req:method(Req),
     {Path, Req2} = cowboy_req:path(Req1),
     lager:info("Method is: ~p Path is ~p", [Method, Path]),
-    Req3 = op(Method, binary_to_list(Path), Req2),
-    {ok, Req3, State}.
+    Req4 = case op(Method, binary_to_list(Path), Req2) of
+       {ok, Req3} -> Req3;
+       Req3 -> Req3
+    end,
+    {ok, Req4, State}.
 
 -spec op(binary(), string(), term()) -> _.
 op(<<"GET">>, "/disco/version", Req) ->
@@ -25,15 +28,15 @@ op(<<"GET">>, "/disco/version", Req) ->
     reply({ok, list_to_binary(Vsn)}, Req);
 
 op(<<"POST">>, "/disco/job/" ++ _, Req) ->
-    BodySize = cowboy_req:parse_header(<<"content-length">>, Req),
+    {ok, BodySize, Req1} = cowboy_req:parse_header(<<"content-length">>, Req),
     if BodySize > ?MAX_JOB_PACKET ->
-           cowboy_req:reply(413, [], <<"Job packet too large">>, Req);
+           cowboy_req:reply(413, [], <<"Job pack too large">>, Req1);
     true ->
         case application:get_env(accept_new_jobs) of
             {ok, 0} ->
                 cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>);
             _ ->
-                {ok, Body, Req1} = cowboy_req:body(Req),
+                {ok, Body, Req1} = cowboy_req:body(Req1),
                 Reply =
                     try
                         {ok, JobName} = job_coordinator:new(Body),

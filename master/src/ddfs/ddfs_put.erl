@@ -78,10 +78,10 @@ receive_blob(Req, {Path, Fname}, Url) ->
 
 -spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
-    BodySize = cowboy_req:parse_header(<<"content-length">>, Req),
-    {Path, Req1} = cowboy_req:path(Req),
+    {ok, BodySize, Req1} = cowboy_req:parse_header(<<"content-length">>, Req),
+    {Path, Req2} = cowboy_req:path(Req1),
     error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p", [Path, BodySize, node()]),
-    case receive_body(Req1, IO) of
+    case receive_body(Req2, IO) of
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
@@ -92,16 +92,16 @@ receive_blob(Req, IO, Dst, Url) ->
             case ddfs_util:safe_rename(Dst, Dir) of
                 ok ->
                     cowboy_req:respon(201, [{<<"content-type">>, <<"application/json">>}],
-                                      ["\"", Url, "\""], Req1);
+                                      ["\"", Url, "\""], Req2);
                 {error, {rename_failed, E}} ->
-                    error_reply(Req1, "Rename failed", Dst, E);
+                    error_reply(Req2, "Rename failed", Dst, E);
                 {error, {chmod_failed, E}} ->
-                    error_reply(Req1, "Mode change failed", Dst, E);
+                    error_reply(Req2, "Mode change failed", Dst, E);
                 {error, file_exists} ->
-                    error_reply(Req1, "File exists", Dst, Dir)
+                    error_reply(Req2, "File exists", Dst, Dir)
             end;
         Error ->
-            error_reply(Req1, "Write failed", Dst, Error)
+            error_reply(Req2, "Write failed", Dst, Error)
     end.
 
 -spec receive_body(module(), file:io_device()) -> _.
