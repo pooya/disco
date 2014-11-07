@@ -99,7 +99,7 @@ receive_blob(Req, IO, Dst, Url) ->
     {Path, Req2} = cowboy_req:path(Req1),
     error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p", [Path, BodySize, node()]),
     case receive_body(Req2, IO) of
-        ok ->
+        {ok, Req3} ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
             % NB: Renaming is not atomic below, thus there's a small
@@ -109,36 +109,36 @@ receive_blob(Req, IO, Dst, Url) ->
             case ddfs_util:safe_rename(Dst, Dir) of
                 ok ->
                     cowboy_req:reply(201, [{<<"content-type">>, <<"application/json">>}],
-                                      ["\"", Url, "\""], Req2);
+                                     [<<"\"", Url/binary, "\"">>], Req3);
                 {error, {rename_failed, E}} ->
-                    error_reply(Req2, "Rename failed", Dst, E);
+                    error_reply(Req3, "Rename failed", Dst, E);
                 {error, {chmod_failed, E}} ->
-                    error_reply(Req2, "Mode change failed", Dst, E);
+                    error_reply(Req3, "Mode change failed", Dst, E);
                 {error, file_exists} ->
-                    error_reply(Req2, "File exists", Dst, Dir)
+                    error_reply(Req3, "File exists", Dst, Dir)
             end;
-        Error ->
-            error_reply(Req2, "Write failed", Dst, Error)
+        {Error, Req3} ->
+            error_reply(Req3, "Write failed", Dst, Error)
     end.
 
--spec receive_body(term(), file:io_device()) -> _.
+-spec receive_body(term(), file:io_device()) -> {ok|_, term()}.
 receive_body(Req, IO) ->
     {Req1, Len} = (catch receive_body_into(Req, IO, 0)),
     case Len of
         % R == <<>> or undefined if body is empty
         R when is_integer(R); R =:= <<>>; R =:= undefined ->
-            {Path, _Req1} = cowboy_req:path(Req1), % TODO
+            {Path, Req2} = cowboy_req:path(Req1),
             error_logger:info_msg("PUT BLOB done with ~p (~p) on ~p",
                                   [Path, R, node()]),
             case [file:sync(IO), file:close(IO)] of
-                [ok, ok] -> ok;
-                E -> hd([X || X <- E, X =/= ok])
+                [ok, ok] -> {ok, Req2};
+                E -> {hd([X || X <- E, X =/= ok]), Req2}
             end;
         Error ->
-            {Path, _Req1} = cowboy_req:path(Req1), % TODO
+            {Path, Req2} = cowboy_req:path(Req1),
             error_logger:info_msg("PUT BLOB error for ~p on ~p: ~p",
                                   [Path, node(), Error]),
-            Error
+            {Error, Req2}
     end.
 
 -spec receive_body_into(term(), file:io_device(), non_neg_integer()) -> _.
