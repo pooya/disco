@@ -5,7 +5,7 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
--export([handle/2]).
+-export([handle/2, init/3, terminate/3]).
 
 -type json() :: binary() | [binary()] | {'struct', [{binary(), json()}]}.
 
@@ -21,16 +21,22 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
+init(_Type, Req, []) ->
+    {ok, Req, undefined}.
+terminate(_Reason, _Req, _State) ->
+    ok.
+
 handle(Req, State) ->
     {Method, Req1} = cowboy_req:method(Req),
     {Path, Req2} = cowboy_req:path(Req1),
+    lager:info("Path is: ~p", [Path]),
     Req4 = case op(Method, binary_to_list(Path), Req2) of
         {ok, Req3} -> Req3;
         Req3       -> Req3
     end,
     {ok, Req4, State}.
 
--spec parse_auth_token(token()) -> token().
+-spec parse_auth_token(term()) -> {token(), term()}.
 parse_auth_token(Req) ->
     {AuthHdr, Req1} = cowboy_req:qs_val(<<"authorization">>, Req, undefined),
     Token = case AuthHdr of
@@ -136,6 +142,7 @@ op(<<"GET">>, "/ddfs/new_blob/" ++ BlobName, Req) ->
 
 op(<<"GET">>, "/ddfs/tags" ++ Prefix0, Req) ->
     Prefix = list_to_binary(string:strip(Prefix0, both, $/)),
+    lager:info("in ddfs tags ~p ~p", [Prefix0, Prefix]),
     try case ddfs:tags(ddfs_master, Prefix) of
             {ok, Tags} -> okjson(Tags, Req);
             E -> on_error(E, Req)
@@ -154,7 +161,7 @@ op(<<"GET">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
         _ ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
-                    Req:ok({"application/json", [], TagData});
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], TagData, Req1);
                 {missing, _} ->
                     cowboy_req:reply(404, [], <<"Tag not found.">>, Req1);
                 invalid_name ->
@@ -162,7 +169,7 @@ op(<<"GET">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
                 unknown_attribute ->
                     cowboy_req:reply(404, [], <<"Tag attribute not found.">>, Req1);
                 E ->
-                    on_error(E, Req)
+                    on_error(E, Req1)
             end
     end;
 
@@ -199,7 +206,7 @@ op(<<"PUT">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
                                               Token)
                      end
                  end,
-            process_payload(Op, Req)
+            process_payload(Op, Req1)
     end;
 
 op(<<"DELETE">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
@@ -211,16 +218,18 @@ op(<<"DELETE">>, "/ddfs/tag/" ++ TagAttrib, Req) ->
         all ->
             case ddfs:delete(ddfs_master, Tag, Token) of
                 ok ->
-                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
+                                     mochijson2:encode(<<"deleted">>), Req1);
                 E ->
-                    on_error(E, Req)
+                    on_error(E, Req1)
             end;
         _ ->
             case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
                 ok ->
-                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
+                                     mochijson2:encode(<<"deleted">>), Req1);
                 E ->
-                    on_error(E, Req)
+                    on_error(E, Req1)
             end
     end;
 
@@ -266,7 +275,7 @@ gc_phase_msg(rr_blobs_wait) ->
 gc_phase_msg(rr_tags) ->
     <<"GC is re-replicating tags (phase rr_tags).">>.
 
--spec on_error(_, module()) -> _.
+-spec on_error(_, term()) -> _.
 on_error(timeout, Req) ->
     cowboy_req:reply(503, [], <<"Temporary server error. Try again.">>, Req);
 on_error({error, timeout}, Req) ->
@@ -292,13 +301,14 @@ on_error(E, Req) ->
     Msg = ["Internal server error: ", io_lib:format("~p", [E])],
     cowboy_req:reply(500, [], list_to_binary(Msg), Req).
 
--spec okjson(json(), module()) -> _.
+-spec okjson(json(), term()) -> {ok, term()}.
 okjson(Data, Req) ->
-    Req:ok({"application/json", [], mochijson2:encode(Data)}).
+    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}],
+                     mochijson2:encode(Data), Req).
 
--spec process_payload(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
+-spec process_payload(fun(([binary()], non_neg_integer()) -> _), term()) -> _.
 process_payload(Fun, Req) ->
-    try  BinaryPayload = Req:recv_body(?MAX_TAG_BODY_SIZE),
+    try  BinaryPayload = cowboy_req:body(Req, [{length, ?MAX_TAG_BODY_SIZE}]),
          Payload = try mochijson2:decode(BinaryPayload)
                    catch _:_ -> invalid end,
          case Payload of
@@ -318,7 +328,7 @@ parse_inclusion(false) -> [];
 parse_inclusion({value, {_, Str}}) ->
     [disco:slave_safe(Host) || Host <- string:tokens(Str, ",")].
 
--spec new_blob(module(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
+-spec new_blob(term(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
 new_blob(Req, BlobName, K, Inc, Exc) ->
     case ddfs:new_blob(ddfs_master, BlobName, K, Inc, Exc) of
