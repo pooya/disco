@@ -79,9 +79,9 @@ receive_blob(Req, {Path, Fname}, Url) ->
 -spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
     BodySize = cowboy_req:parse_header(<<"content-length">>, Req),
-    error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
-                          [Req:get(path), BodySize, node()]),
-    case receive_body(Req, IO) of
+    {Path, Req1} = cowboy_req:path(Req),
+    error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p", [Path, BodySize, node()]),
+    case receive_body(Req1, IO) of
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
@@ -91,18 +91,17 @@ receive_blob(Req, IO, Dst, Url) ->
             % file should not be corrupted.
             case ddfs_util:safe_rename(Dst, Dir) of
                 ok ->
-                    Req:respond({201,
-                        [{"content-type", "application/json"}],
-                            ["\"", Url, "\""]});
+                    cowboy_req:respon(201, [{<<"content-type">>, <<"application/json">>}],
+                                      ["\"", Url, "\""], Req1);
                 {error, {rename_failed, E}} ->
-                    error_reply(Req, "Rename failed", Dst, E);
+                    error_reply(Req1, "Rename failed", Dst, E);
                 {error, {chmod_failed, E}} ->
-                    error_reply(Req, "Mode change failed", Dst, E);
+                    error_reply(Req1, "Mode change failed", Dst, E);
                 {error, file_exists} ->
-                    error_reply(Req, "File exists", Dst, Dir)
+                    error_reply(Req1, "File exists", Dst, Dir)
             end;
         Error ->
-            error_reply(Req, "Write failed", Dst, Error)
+            error_reply(Req1, "Write failed", Dst, Error)
     end.
 
 -spec receive_body(module(), file:io_device()) -> _.
@@ -117,15 +116,17 @@ receive_body(Req, IO) ->
     case R0 of
         % R == <<>> or undefined if body is empty
         R when is_integer(R); R =:= <<>>; R =:= undefined ->
+            {Path, _Req1} = cowboy_req:path(Req), % TODO
             error_logger:info_msg("PUT BLOB done with ~p (~p) on ~p",
-                                  [Req:get(path), R, node()]),
+                                  [Path, R, node()]),
             case [file:sync(IO), file:close(IO)] of
                 [ok, ok] -> ok;
                 E -> hd([X || X <- E, X =/= ok])
             end;
         Error ->
+            {Path, _Req1} = cowboy_req:path(Req), % TODO
             error_logger:info_msg("PUT BLOB error for ~p on ~p: ~p",
-                                  [Req:get(path), node(), Error]),
+                                  [Path, node(), Error]),
             Error
     end.
 
@@ -134,4 +135,4 @@ error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_msg("Error response for ~p on ~p: ~p (error ~p)",
                              [Dst, node(), Msg, Err]),
-    Req:respond({500, [], M}).
+    cowboy_req:reply(500, [], M, Req).
