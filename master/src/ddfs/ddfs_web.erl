@@ -306,19 +306,20 @@ okjson(Data, Req) ->
 
 -spec process_payload(fun(([binary()], non_neg_integer()) -> _), term()) -> _.
 process_payload(Fun, Req) ->
-    try  BinaryPayload = cowboy_req:body(Req, [{length, ?MAX_TAG_BODY_SIZE}]),
-         Payload = try mochijson2:decode(BinaryPayload)
-                   catch _:_ -> invalid end,
+    {ok, BinaryPayload, Req1} = cowboy_req:body(Req, [{length, ?MAX_TAG_BODY_SIZE}]),
+    try Payload =
+        try mochijson2:decode(BinaryPayload)
+        catch _:_ -> invalid end,
          case Payload of
              invalid ->
-                 cowboy_req:reply(403, [], <<"Invalid request body.">>, Req);
+                 cowboy_req:reply(403, [], <<"Invalid request body.">>, Req1);
              Value ->
                  case Fun(Value, byte_size(BinaryPayload)) of
-                     {ok, Dst} -> okjson(Dst, Req);
-                     E -> on_error(E, Req)
+                     {ok, Dst} -> okjson(Dst, Req1);
+                     E -> on_error(E, Req1)
                  end
          end
-    catch _:_ -> cowboy_req:reply(403, [], <<"Invalid request.">>, Req)
+    catch _:_ -> cowboy_req:reply(403, [], <<"Invalid request.">>, Req1)
     end.
 
 -spec parse_inclusion('false' | {'value', {_, binary()}}) -> [node()].
