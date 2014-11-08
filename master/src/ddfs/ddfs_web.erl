@@ -40,18 +40,13 @@ handle(Req, State) ->
 parse_auth_token(Req) ->
     case cowboy_req:parse_header(<<"authorization">>, Req) of
         {undefined, _Value, Req1} ->
+            lager:info("Header could not be parsed ~p", [_Value]),
             {Req1, null};
-        {ok, {<<"Basic">>, Auth}, Req1} ->
-            % TODO test this
-            case base64:decode(Auth) of
-                <<"token:", T/binary>> ->
-                    {Req1, T};
-                _ ->
-                    {Req1, null}
-            end;
-        _ ->
+        {ok, {<<"basic">>, {<<"token">>, T}}, Req1} ->
+            {Req1, T};
+        {ok, _Auth, Req1} ->
             % Unknown auth, or basic auth that does not follow the spec.
-            {Req, null}
+            {Req1, null}
     end.
 
 -spec op(atom(), string(), term()) -> _.
