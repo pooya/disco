@@ -28,6 +28,7 @@ start_link(Config, NodeMon) ->
     process_flag(trap_exit, true),
 
     _ = application:start(ranch),
+    _ = application:start(crypto),
     _ = application:start(cowlib),
     _ = application:start(cowboy),
     case gen_server:start_link(
