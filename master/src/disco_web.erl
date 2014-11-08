@@ -38,7 +38,7 @@ op(<<"POST">>, "/disco/job/" ++ _, Req) ->
             {ok, 0} ->
                 cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>, Req1);
             _ ->
-                {ok, Body, Req1} = cowboy_req:body(Req1),
+                {ok, Body, Req2} = cowboy_req:body(Req1),
                 Reply =
                     try
                         {ok, JobName} = job_coordinator:new(Body),
@@ -52,7 +52,7 @@ op(<<"POST">>, "/disco/job/" ++ _, Req) ->
                             lager:warning("Job failed to start: ~p:~p", [K, E]),
                             [<<"error">>, list_to_binary(ErrorString)]
                     end,
-                reply({ok, Reply}, Req1)
+                reply({ok, Reply}, Req2)
         end
     end;
 
