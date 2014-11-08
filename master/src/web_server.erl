@@ -13,7 +13,7 @@ start(Port) ->
         {'_', [
             {"/disco/[...]", disco_web, []},
             {"/ddfs/[...]", ddfs_web, []},
-            {"/[...]", toppage_handler, []}
+            {"/[...]", disco_file_server, []}
             %{"/proxy",  disco_web, []}, % TODO add a module for proxy
         ]}
     ]),
