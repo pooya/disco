@@ -107,7 +107,8 @@ getop("joblist", _Query) ->
           || {Name, Status, {MSec, Sec, _USec}}
                  <- lists:reverse(lists:keysort(3, Jobs))]};
 
-getop("jobinfo", {_Query, JobName}) ->
+getop("jobinfo", {_Query, JobNameBin}) ->
+    JobName = binary_to_list(JobNameBin),
     {ok, Active} = disco_server:get_active(JobName),
     HostInfo = lists:unzip([{H, S} || {H, _J, S} <- Active]),
     case event_server:get_jobinfo(JobName) of
