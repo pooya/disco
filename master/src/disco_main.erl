@@ -13,7 +13,7 @@
 
 set_env(Key, Default) ->
     Val =
-        case application:get_env(Key) of
+        case application:get_env(disco, Key) of
             undefined ->
                 Default;
             {ok, X} ->

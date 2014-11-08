@@ -169,7 +169,7 @@ fairness_fairy(NumCores) ->
         {update, NewNumCores} -> fairness_fairy(NewNumCores);
         _                     -> fairness_fairy(NumCores)
     after ?FAIRY_INTERVAL ->
-            case application:get_env(fair_scheduler_alpha) of
+            case application:get_env(disco, fair_scheduler_alpha) of
                 {ok, Alpha} -> update_priorities(Alpha, NumCores);
                 undefined   -> update_priorities(?FF_ALPHA_DEFAULT, NumCores)
             end,

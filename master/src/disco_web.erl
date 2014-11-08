@@ -24,7 +24,7 @@ handle(Req, State) ->
 
 -spec op(binary(), string(), term()) -> _.
 op(<<"GET">>, "/disco/version", Req) ->
-    {ok, Vsn} = application:get_key(vsn),
+    {ok, Vsn} = application:get_key(disco, vsn),
     reply({ok, list_to_binary(Vsn)}, Req);
 
 op(<<"POST">>, "/disco/job/" ++ _, Req) ->
@@ -34,7 +34,7 @@ op(<<"POST">>, "/disco/job/" ++ _, Req) ->
        BodySize > ?MAX_JOB_PACKET ->
            cowboy_req:reply(413, [], <<"Job pack too large">>, Req1);
     true ->
-        case application:get_env(accept_new_jobs) of
+        case application:get_env(disco, accept_new_jobs) of
             {ok, 0} ->
                 cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>, Req1);
             _ ->
@@ -281,9 +281,8 @@ postop("save_settings", Json) ->
     validate_payload("save_settings", {object, []}, Json,
                      fun(J) ->
                              {struct, Lst} = J,
-                             {ok, App} = application:get_application(),
                              lists:foreach(fun({Key, Val}) ->
-                                                   update_setting(Key, Val, App)
+                                                   update_setting(Key, Val)
                                            end, Lst),
                              {ok, <<"Settings saved">>}
                      end);
@@ -296,13 +295,13 @@ job_file(Name, File) ->
     lager:info("home, name ~p, ~p", [Home, Name]), 
     {file, File, filename:join([Root, Home])}.
 
-update_setting(<<"max_failure_rate">>, Val, App) ->
-    ok = application:set_env(App, max_failure_rate, binary_to_integer(Val));
+update_setting(<<"max_failure_rate">>, Val) ->
+    ok = application:set_env(disco, max_failure_rate, binary_to_integer(Val));
 
-update_setting(<<"accept_new_jobs">>, Val, App) ->
-    ok = application:set_env(App, accept_new_jobs, binary_to_integer(Val));
+update_setting(<<"accept_new_jobs">>, Val) ->
+    ok = application:set_env(disco, accept_new_jobs, binary_to_integer(Val));
 
-update_setting(Key, Val, _) ->
+update_setting(Key, Val) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
 dfind(Key, Dict, Default) ->

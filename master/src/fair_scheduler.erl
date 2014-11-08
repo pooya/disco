@@ -73,7 +73,7 @@ new_task(Task, LoadStats) ->
 -spec init([]) -> gs_init().
 init([]) ->
     {ok, _ } =
-        case application:get_env(scheduler_opt) of
+        case application:get_env(disco, scheduler_opt) of
             {ok, "fifo"} ->
                 lager:info("Scheduler uses fifo policy"),
                 fair_scheduler_fifo_policy:start_link();
