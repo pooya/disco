@@ -64,7 +64,7 @@ op(<<"POST">>, "/disco/ctrl/" ++ Op, Req) ->
 
 op(<<"GET">>, "/disco/ctrl/" ++ Op, Req) ->
     {Name, Req1} = cowboy_req:qs_val(<<"name">>, Req, false),
-    {Qs, Req2} = cowboy_req:qs(Req1),
+    {Qs, Req2} = cowboy_req:qs_vals(Req1),
     reply(getop(Op, {Qs, Name}), Req2);
 
 op(<<"GET">>, Path, Req) ->
@@ -127,15 +127,15 @@ getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
 
 getop("jobevents", {Query, Name}) ->
-    Num = case lists:keyfind("num", 1, Query) of
+    Num = case lists:keyfind(<<"num">>, 1, Query) of
               false  -> 10;
-              {_, N} -> list_to_integer(N)
+              {_, N} -> binary_to_integer(N)
           end,
-    Q = case lists:keyfind("filter", 1, Query) of
+    Q = case lists:keyfind(<<"filter">>, 1, Query) of
             false  -> "";
-            {_, F} -> string:to_lower(F)
+            {_, F} -> F
         end,
-    {ok, Ev} = event_server:get_job_msgs(Name, Q, Num),
+    {ok, Ev} = event_server:get_job_msgs(binary_to_list(Name), binary_to_list(Q), Num),
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
@@ -189,7 +189,7 @@ getop("get_settings", _Query) ->
                                  end, L))}};
 
 getop("get_stageresults", {Query, Name}) ->
-    Stage = case lists:keyfind("stage", 1, Query) of
+    Stage = case lists:keyfind(<<"stage">>, 1, Query) of
         {_, N} -> N;
         _      -> not_found
     end,
@@ -302,12 +302,10 @@ job_file(Name, File) ->
     {file, File, filename:join([Root, Home])}.
 
 update_setting(<<"max_failure_rate">>, Val, App) ->
-    ok = application:set_env(App, max_failure_rate,
-                             list_to_integer(binary_to_list(Val)));
+    ok = application:set_env(App, max_failure_rate, binary_to_integer(Val));
 
 update_setting(<<"accept_new_jobs">>, Val, App) ->
-    ok = application:set_env(App, accept_new_jobs,
-                             list_to_integer(binary_to_list(Val)));
+    ok = application:set_env(App, accept_new_jobs, binary_to_integer(Val));
 
 update_setting(Key, Val, _) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
