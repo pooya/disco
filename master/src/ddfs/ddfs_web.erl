@@ -236,9 +236,11 @@ op(_, _, Req) ->
 
 is_set(Flag, QS) ->
     case lists:keyfind(Flag, 1, QS) of
+        {Flag, <<>>} ->
+            false;
         {Flag, _} ->
             true;
-        _ ->
+        false ->
             false
     end.
 
