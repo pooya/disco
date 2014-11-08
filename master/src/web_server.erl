@@ -17,7 +17,6 @@ start(Port) ->
             %{"/proxy",  disco_web, []}, % TODO add a module for proxy
         ]}
     ]),
-    %{ok, _} = cowboy:start_http(http, 100, [{port, 8080}],[{env, [{dispatch, Dispatch}]}]).
 
     {ok, Pid} = cowboy:start_http(http, 100, [{port, Port}], [
             {env, [{dispatch, Dispatch}]}

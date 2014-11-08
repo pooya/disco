@@ -19,7 +19,7 @@ start(Port) ->
         ]}
     ]),
     error_logger:info_msg("Started ~p at ~p on port ~p", [?MODULE, node(), Port]),
-    cowboy:start_http(http, 100, [{port, Port}], [{env, [{dispatch, Dispatch}]}]).
+    cowboy:start_http(?MODULE, 100, [{port, Port}], [{env, [{dispatch, Dispatch}]}]).
 
 init(_Type, Req, []) ->
     {ok, Req, undefined}.
