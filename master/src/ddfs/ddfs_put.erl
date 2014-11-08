@@ -146,16 +146,15 @@ receive_body_into(Req, IO, Size) ->
     case Size > ?MAX_RECV_BODY of
         true -> throw(io_lib:format("Size is ~p and is too large.", [Size]));
         false ->
-            case cowboy_req:body(Req) of
-                {ok, Data, Req1} ->
+            case cowboy_req:body(Req) of
+                {ok, Data, Req1} ->
                     ok = file:write(IO, Data),
-                    {Req1, Size + byte_size(Data)};
-                {more, Data, Req1} ->
+                    {Req1, Size + byte_size(Data)};
+                {more, Data, Req1} ->
                     ok = file:write(IO, Data),
-                    receive_body_into(Req1, IO, Size + byte_size(Data))
-            end
+                    receive_body_into(Req1, IO, Size + byte_size(Data))
+            end
     end.
-
 
 -spec error_reply(term(), nonempty_string(), path(), term()) -> _.
 error_reply(Req, Msg, Dst, Err) ->
