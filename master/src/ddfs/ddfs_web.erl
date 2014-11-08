@@ -117,19 +117,16 @@ op(<<"GET">>, "/ddfs/new_blob/" ++ BlobName, Req) ->
     lager:info("qs ~p, blobname ~p", [QS, BlobName]),
     K = case lists:keyfind(<<"replicas">>, 1, QS) of
             false -> BlobK;
-            {_, X} -> list_to_integer(X)
+            {<<"replicas">>, X} -> list_to_integer(X)
     end,
-    Exc = parse_inclusion(lists:keysearch(<<"exclude">>, 1, QS)),
-    Include = lists:keysearch(<<"include">>, 1, QS),
-    Inc = parse_inclusion(Include),
-    case {Include, Inc} of
-        {false, [_H|_T]} ->
-            cowboy_req:reply(403, [], <<"This must not happen.">>, Req1);
-        {false, _} ->
+    Exc = parse_inclusion(lists:keyfind(<<"exclude">>, 1, QS)),
+    Inc = parse_inclusion(lists:keyfind(<<"include">>, 1, QS)),
+    case Inc of
+        [] ->
             new_blob(Req1, BlobName, K, Inc, Exc);
-        {_, [false]} ->
+        [false] ->
             cowboy_req:reply(403, [], <<"Requested Replica not found.">>, Req1);
-        {_, [_H|_T]} ->
+        [_H|_T] ->
             new_blob(Req1, BlobName, K, Inc, Exc)
     end;
 
@@ -319,7 +316,7 @@ process_payload(Fun, Req) ->
 
 -spec parse_inclusion('false' | {'value', {_, binary()}}) -> [node()].
 parse_inclusion(false) -> [];
-parse_inclusion({value, {_, Str}}) ->
+parse_inclusion({_, Str}) ->
     [disco:slave_safe(Host) || Host <- string:tokens(binary_to_list(Str), ",")].
 
 -spec new_blob(term(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
