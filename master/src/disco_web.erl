@@ -15,7 +15,6 @@ terminate(_Reason, _Req, _State) ->
 handle(Req, State) ->
     {Method, Req1} = cowboy_req:method(Req),
     {Path, Req2} = cowboy_req:path(Req1),
-    lager:info("Method is: ~p Path is ~p", [Method, Path]),
     Req4 = case op(Method, binary_to_list(Path), Req2) of
        {ok, Req3} -> Req3;
        Req3 -> Req3

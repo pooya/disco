@@ -10,7 +10,6 @@ init(_Type, Req, []) ->
 
 handle(Req, DocRoot) ->
     {Path, Req1} = cowboy_req:path(Req),
-    lager:info("Path is: ~p", [Path]),
     Req2 = serve_file(Req1, binary_to_list(Path), DocRoot),
     {ok, Req2, DocRoot}.
 

@@ -29,7 +29,6 @@ terminate(_Reason, _Req, _State) ->
 handle(Req, State) ->
     {Method, Req1} = cowboy_req:method(Req),
     {Path, Req2} = cowboy_req:path(Req1),
-    lager:info("Path is: ~p", [Path]),
     Req4 = case op(Method, binary_to_list(Path), Req2) of
         {ok, Req3} -> Req3;
         Req3       -> Req3
@@ -114,7 +113,6 @@ op(<<"GET">>, "/ddfs/ctrl/safe_gc_blacklist", Req) ->
 op(<<"GET">>, "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     {QS, Req1} = cowboy_req:qs_vals(Req),
-    lager:info("qs ~p, blobname ~p", [QS, BlobName]),
     K = case lists:keyfind(<<"replicas">>, 1, QS) of
             false -> BlobK;
             {<<"replicas">>, X} -> list_to_integer(X)

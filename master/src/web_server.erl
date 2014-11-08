@@ -22,6 +22,6 @@ start(Port) ->
     {ok, Pid} = cowboy:start_http(http, 100, [{port, Port}], [
             {env, [{dispatch, Dispatch}]}
         ]),
-    lager:info("web server (cowboy) starts with ~p", [Dispatch]),
+    lager:info("web server (cowboy) starts."),
     {ok, Pid}.
 
