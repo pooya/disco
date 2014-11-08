@@ -57,15 +57,17 @@ op(<<"POST">>, "/disco/job/" ++ _, Req) ->
     end;
 
 op(<<"POST">>, "/disco/ctrl/" ++ Op, Req) ->
-    {ok, BinBody, Req1} = cowboy_req:body(Req),
-    Body = binary_to_list(BinBody),
+    {ok, Body, Req1} = cowboy_req:body(Req),
     Json = mochijson2:decode(Body),
     reply(postop(Op, Json), Req1);
 
 op(<<"GET">>, "/disco/ctrl/" ++ Op, Req) ->
-    {Name, Req1} = cowboy_req:qs_val(<<"name">>, Req, false),
-    {Qs, Req2} = cowboy_req:qs_vals(Req1),
-    reply(getop(Op, {Qs, Name}), Req2);
+    {Qs, Req1} = cowboy_req:qs_vals(Req),
+    Name = case lists:keyfind(<<"name">>, 1, Qs) of
+               false -> false;
+               {_, N} -> N
+           end,
+    reply(getop(Op, {Qs, Name}), Req1);
 
 op(<<"GET">>, Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
