@@ -51,7 +51,7 @@ loop("/ddfs/" ++ BlobName, Req) ->
                         cowboy_req:reply(500, [], <<"No volumes">>, Req1);
                     full ->
                         cowboy_req:reply(503, [], <<"Maximum number of uploaders reached. ",
-                                      "Try again later">>);
+                                      "Try again later">>, Req1);
                     {error, Error} ->
                         error_reply(Req1, "Could not put blob", BlobName, Error)
                     end

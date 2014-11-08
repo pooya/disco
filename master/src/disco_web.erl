@@ -29,12 +29,14 @@ op(<<"GET">>, "/disco/version", Req) ->
 
 op(<<"POST">>, "/disco/job/" ++ _, Req) ->
     {ok, BodySize, Req1} = cowboy_req:parse_header(<<"content-length">>, Req),
-    if BodySize > ?MAX_JOB_PACKET ->
+    if BodySize =:= undefined ->
+           cowboy_req:reply(413, [], <<"No job pack">>, Req1);
+       BodySize > ?MAX_JOB_PACKET ->
            cowboy_req:reply(413, [], <<"Job pack too large">>, Req1);
     true ->
         case application:get_env(accept_new_jobs) of
             {ok, 0} ->
-                cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>);
+                cowboy_req:reply(403, [], <<"No new jobs should be submitted to this cluster.">>, Req1);
             _ ->
                 {ok, Body, Req1} = cowboy_req:body(Req1),
                 Reply =
