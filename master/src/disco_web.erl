@@ -74,34 +74,27 @@ op(<<"GET">>, Path, Req) ->
     ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
-    {ok, Req1} = cowboy_req:reply(404, Req),
-    Req1.
+    cowboy_req:reply(404, Req).
 
 reply({ok, Data}, Req) ->
-    {ok, Req2} = cowboy_req:reply(200,
-        [{<<"content-type">>, <<"application/json">>} ],
-        mochijson2:encode(Data), Req),
-    Req2;
+    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>} ],
+        mochijson2:encode(Data), Req);
 
 reply({raw, Data}, Req) ->
-    {ok, Req2} = cowboy_req:reply(200,
-        [{<<"content-type">>, <<"text/plain">>}],
-        Data, Req),
-    Req2;
+    cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], Data, Req);
 
 reply({file, File, Docroot}, Req) ->
     lager:info("Replying with file ~p Docroot ~p", [File, Docroot]),
     F = fun(Socket, Transport) ->
             Transport:sendfile(Socket, filename:join([Docroot, File]))
         end,
-    cowboy_req:set_resp_body_fun(F, Req);
+    Req1 = cowboy_req:set_resp_body_fun(F, Req),
+    cowboy_req:reply(200, Req1);
 reply(not_found, Req) ->
-    {ok, Req1} = cowboy_req:reply(404, Req),
-    Req1;
+    cowboy_req:reply(404, Req);
 
 reply({error, E}, Req) ->
-    {ok, Req1} = cowboy_req:reply(400, [], list_to_binary(mochijson2:encode(E)), Req),
-    Req1.
+    cowboy_req:reply(400, [], list_to_binary(mochijson2:encode(E)), Req).
 
 getop("load_config_table", _Query) ->
     disco_config:get_config_table();
